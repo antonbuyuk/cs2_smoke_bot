@@ -1,0 +1,30 @@
+{
+  "name": "cs2-smoke-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for CS2 grenade lineups",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "lodash": "^4.17.21",
+    "node-telegram-bot-api": "^0.63.0",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "cs2",
+    "telegram",
+    "bot",
+    "smoke"
+  ],
+  "author": "",
+  "license": "MIT"
+}
