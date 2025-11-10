@@ -1,15 +1,21 @@
-// Функция для создания клавиатуры
-const createKeyboard = (prefix: string, arrayName: any) => {
-  return {
-    inline_keyboard: Object.entries(arrayName).map(([key, value]: [string, any]) => ([{
-      text: `${value.emoji} ${value.name}`,
-      callback_data: `${prefix}_${value.callback}`
-    }]))
-  };
+import type { KeyboardOption } from '../utils/types';
+
+type KeyboardDictionary = Record<string, KeyboardOption>;
+
+const hasDictionaryKey = <T extends Record<string, unknown>>(dictionary: T, key: string): key is keyof T & string => {
+  return Object.prototype.hasOwnProperty.call(dictionary, key);
 };
 
+// Функция для создания клавиатуры
+export const createKeyboard = (prefix: string, options: KeyboardDictionary) => ({
+  inline_keyboard: Object.entries(options).map(([, value]) => ([{
+    text: `${value.emoji} ${value.name}`,
+    callback_data: `${prefix}_${value.callback}`
+  }]))
+});
+
 // Константы для карт
-const MAP_TYPES: { [key: string]: { callback: string; name: string; emoji: string } } = {
+export const MAP_TYPES = {
   ancient: {
     callback: 'ancient',
     name: 'Ancient',
@@ -50,14 +56,14 @@ const MAP_TYPES: { [key: string]: { callback: string; name: string; emoji: strin
     name: 'All maps',
     emoji: '📋'
   }
-};
+} as const satisfies KeyboardDictionary;
 
-const getMapName = (mapName: string) => MAP_TYPES[mapName]?.name;
-const getMapEmoji = (mapName: string) => MAP_TYPES[mapName]?.emoji;
+export const getMapName = (mapName: string) => hasDictionaryKey(MAP_TYPES, mapName) ? MAP_TYPES[mapName].name : undefined;
+export const getMapEmoji = (mapName: string) => hasDictionaryKey(MAP_TYPES, mapName) ? MAP_TYPES[mapName].emoji : undefined;
 
 
 // Константы для типов гранат
-const GRENADE_TYPES: { [key: string]: { emoji: string; name: string; callback: string } } = {
+export const GRENADE_TYPES = {
   smoke: {
     emoji: '💨',
     name: 'Smoke',
@@ -88,16 +94,20 @@ const GRENADE_TYPES: { [key: string]: { emoji: string; name: string; callback: s
     name: 'All types',
     callback: 'all'
   }
-};
+} as const satisfies KeyboardDictionary;
 
 // Функция для получения эмодзи типа гранаты
-const getGrenadeTypeEmoji = (grenadeType: string) => GRENADE_TYPES[grenadeType]?.emoji || '💨';
+export const getGrenadeTypeEmoji = (grenadeType: string) => hasDictionaryKey(GRENADE_TYPES, grenadeType)
+  ? GRENADE_TYPES[grenadeType].emoji
+  : '💨';
 
 // Функция для получения названия типа гранаты
-const getGrenadeTypeName = (grenadeType: string) => GRENADE_TYPES[grenadeType]?.name || 'Smoke';
+export const getGrenadeTypeName = (grenadeType: string) => hasDictionaryKey(GRENADE_TYPES, grenadeType)
+  ? GRENADE_TYPES[grenadeType].name
+  : 'Smoke';
 
 // Константы для сложности
-const DIFFICULTY_LEVELS: { [key: string]: { emoji: string; name: string; callback: string } } = {
+export const DIFFICULTY_LEVELS = {
   easy: {
     emoji: '🟢',
     name: 'Easy',
@@ -118,16 +128,20 @@ const DIFFICULTY_LEVELS: { [key: string]: { emoji: string; name: string; callbac
     name: 'All difficulties',
     callback: 'all'
   }
-};
+} as const satisfies KeyboardDictionary;
 
 // Функция для получения эмодзи сложности
-const getDifficultyEmoji = (difficulty: string) => DIFFICULTY_LEVELS[difficulty]?.emoji || '🟢';
+export const getDifficultyEmoji = (difficulty: string) => hasDictionaryKey(DIFFICULTY_LEVELS, difficulty)
+  ? DIFFICULTY_LEVELS[difficulty].emoji
+  : '🟢';
 
 // Функция для получения названия сложности
-const getDifficultyName = (difficulty: string) => DIFFICULTY_LEVELS[difficulty]?.name || 'Easy';
+export const getDifficultyName = (difficulty: string) => hasDictionaryKey(DIFFICULTY_LEVELS, difficulty)
+  ? DIFFICULTY_LEVELS[difficulty].name
+  : 'Easy';
 
 // Константы для сторон
-const SIDE_TYPES: { [key: string]: { emoji: string; name: string; callback: string } } = {
+export const SIDE_TYPES = {
   t: {
     emoji: '🔴',
     name: 'T',
@@ -143,14 +157,14 @@ const SIDE_TYPES: { [key: string]: { emoji: string; name: string; callback: stri
     name: 'Both',
     callback: 'all'
   }
-};
+} as const satisfies KeyboardDictionary;
 
-const getSideEmoji = (side: string) => SIDE_TYPES[side]?.emoji;
-const getSideName = (side: string) => SIDE_TYPES[side]?.name;
+export const getSideEmoji = (side: string) => hasDictionaryKey(SIDE_TYPES, side) ? SIDE_TYPES[side].emoji : undefined;
+export const getSideName = (side: string) => hasDictionaryKey(SIDE_TYPES, side) ? SIDE_TYPES[side].name : undefined;
 
 
 // Константы для линий
-const LINE_TYPES: { [key: string]: { emoji: string; name: string; callback: string } } = {
+export const LINE_TYPES = {
   plant_a: {
     emoji: '🅰️',
     name: 'Plant A',
@@ -171,12 +185,12 @@ const LINE_TYPES: { [key: string]: { emoji: string; name: string; callback: stri
     name: 'All lines',
     callback: 'all'
   }
-};
-const getLineEmoji = (line: string) => LINE_TYPES[line]?.emoji;
-const getLineName = (line: string) => LINE_TYPES[line]?.name;
+} as const satisfies KeyboardDictionary;
+export const getLineEmoji = (line: string) => hasDictionaryKey(LINE_TYPES, line) ? LINE_TYPES[line].emoji : undefined;
+export const getLineName = (line: string) => hasDictionaryKey(LINE_TYPES, line) ? LINE_TYPES[line].name : undefined;
 
 // Константы для действий админа
-const ADMIN_ACTIONS: { [key: string]: { emoji: string; name: string; callback: string } } = {
+export const ADMIN_ACTIONS = {
   approve: {
     emoji: '✅',
     name: 'Approve',
@@ -202,20 +216,22 @@ const ADMIN_ACTIONS: { [key: string]: { emoji: string; name: string; callback: s
     name: 'View',
     callback: 'view'
   }
-};
+} as const satisfies KeyboardDictionary;
 
 // Функция для получения эмодзи действия админа
-const getAdminActionEmoji = (action: string) => {
-  return ADMIN_ACTIONS[action]?.emoji || '⚙️';
+export const getAdminActionEmoji = (action: string) => {
+  return hasDictionaryKey(ADMIN_ACTIONS, action) ? ADMIN_ACTIONS[action].emoji : '⚙️';
 };
 
 // Функция для получения названия действия админа
-const getAdminActionName = (action: string) => {
-  return ADMIN_ACTIONS[action]?.name || 'Action';
+export const getAdminActionName = (action: string) => {
+  return hasDictionaryKey(ADMIN_ACTIONS, action) ? ADMIN_ACTIONS[action].name : 'Action';
 };
 
 // Функция для создания клавиатуры действий админа
-const createAdminActionKeyboard = (prefix: string, actions = ['approve', 'reject', 'edit']) => {
+const defaultAdminActions: (keyof typeof ADMIN_ACTIONS)[] = ['approve', 'reject', 'edit'];
+
+export const createAdminActionKeyboard = (prefix: string, actions: (keyof typeof ADMIN_ACTIONS)[] = defaultAdminActions) => {
   return {
     inline_keyboard: actions.map(action => ([{
       text: `${ADMIN_ACTIONS[action].emoji} ${ADMIN_ACTIONS[action].name}`,
@@ -225,7 +241,7 @@ const createAdminActionKeyboard = (prefix: string, actions = ['approve', 'reject
 };
 
 // Функция для безопасного экранирования Markdown
-const escapeMarkdown = (text: string) => {
+export const escapeMarkdown = (text: string) => {
   if (!text) return '';
   return text
     .replace(/_/g, '\\_')
@@ -246,42 +262,9 @@ const escapeMarkdown = (text: string) => {
     .replace(/!/g, '\\!');
 };
 
-export default {
-  // Константы
-  MAP_TYPES,
-  GRENADE_TYPES,
-  DIFFICULTY_LEVELS,
-  SIDE_TYPES,
-  LINE_TYPES,
-  ADMIN_ACTIONS,
-
-  // Функции для создания клавиатуры
-  createKeyboard,
-
-  // Функции для карт
-  getMapName,
-  getMapEmoji,
-
-  // Функции для типов гранат
-  getGrenadeTypeEmoji,
-  getGrenadeTypeName,
-
-  // Функции для сложности
-  getDifficultyEmoji,
-  getDifficultyName,
-
-  // Функции для сторон
-  getSideEmoji,
-  getSideName,
-
-  // Функции для линий
-  getLineEmoji,
-  getLineName,
-
-  // Функции для действий админа
-  getAdminActionEmoji,
-  getAdminActionName,
-
-  // Утилиты
-  escapeMarkdown
-};
+export type MapKey = keyof typeof MAP_TYPES;
+export type GrenadeTypeKey = keyof typeof GRENADE_TYPES;
+export type DifficultyKey = keyof typeof DIFFICULTY_LEVELS;
+export type SideKey = keyof typeof SIDE_TYPES;
+export type LineKey = keyof typeof LINE_TYPES;
+export type AdminActionKey = keyof typeof ADMIN_ACTIONS;
