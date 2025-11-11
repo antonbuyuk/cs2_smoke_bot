@@ -1,6 +1,6 @@
 // Экспорт всех обработчиков
-import userHandlers from './user-handlers';
-import adminHandlers from './admin-handlers';
+import * as userHandlers from './user';
+import * as adminHandlers from './admin';
 
 export default {
   ...userHandlers,

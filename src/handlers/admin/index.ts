@@ -1,19 +1,19 @@
-const { debounce } = require('lodash');
-const { addSmoke,
+import type { TelegramBot, BotMessage, BotCallbackQuery } from '../../utils/bot';
+import {
+  addSmoke,
   saveSmokeImage,
-  getMaps, getSmokesByMap,
+  getMaps,
+  getSmokesByMap,
   deleteSmoke,
-  getSmokeById,
   getAllSmokes,
   getAllSuggestedSmokes,
   getSuggestedSmokeMedia,
   approveSuggestedSmoke,
   rejectSuggestedSmoke,
   getSuggestedSmokeById,
-  addSuggestedSmoke,
-  saveSuggestedSmokeImage
-} = require('../database');
-const {
+} from '../../database/database';
+
+import {
   getGrenadeTypeEmoji,
   getGrenadeTypeName,
   getDifficultyEmoji,
@@ -30,16 +30,32 @@ const {
   getLineName,
   getDifficultyName,
   getSideName,
-  DIFFICULTY_LEVELS
-} = require('../config/constants');
+  DIFFICULTY_LEVELS,
+} from '../../config/constants';
 
-// Импортируем suggestStates из user-handlers
-const { suggestStates } = require('./user-handlers');
+import { debounce } from 'lodash';
 
-let lastMessageId = [];
+import type {
+  AddSmokeState,
+  DeleteSmokeState,
+  MediaGroupState,
+  SuggestedMediaFile,
+  NewSmokeInput,
+} from '../../utils/types';
+
+import {
+  isMapKey,
+  isSideKey,
+  isLineKey,
+  isGrenadeTypeKey,
+  isDifficultyKey,
+  resolveChatId,
+} from '../../utils/guards';
+
+let lastMessageId: number[] = [];
 
 // Функция для получения списка админов из переменных окружения
-const getAdminIds = () => {
+export const getAdminIds = () => {
   const adminIdsStr = process.env.ADMIN_IDS;
   if (!adminIdsStr) {
     console.error('ADMIN_IDS not found in environment variables, using default admin ID');
@@ -49,24 +65,24 @@ const getAdminIds = () => {
 };
 
 // Глобальная переменная для бота
-let bot;
+let bot!: TelegramBot;
 
 // Функция для установки экземпляра бота
-const setAdminBot = (botInstance) => {
+export const setAdminBot = (botInstance: TelegramBot) => {
   bot = botInstance;
 };
 
 // Состояния пользователей для добавления смоков
-const chatStates = new Map();
+const chatStates = new Map<number, AddSmokeState>();
 
 // Состояния пользователей для удаления смоков
-const deleteStates = new Map();
+const deleteStates = new Map<number, DeleteSmokeState>();
 
 // Хранилище для медиагрупп
-const mediaGroupStorage = new Map();
+const mediaGroupStorage = new Map<string, MediaGroupState>();
 
 // Обработчик команды /addsmoke
-const handleAddSmoke = async (msg) => {
+export const handleAddSmoke = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
   const adminIds = getAdminIds();
 
@@ -76,14 +92,17 @@ const handleAddSmoke = async (msg) => {
     return;
   }
 
-  chatStates.delete(chatId);
-  deleteStates.delete(chatId);
-
   try {
     const maps = await getMaps();
     const message = `🗺 Choose a map to add smoke:`;
     const keyboard = createKeyboard('addsmoke_map', Object.fromEntries(Object.entries(MAP_TYPES).filter(([key]) => key !== 'all')));
-    chatStates.set(chatId, { maps: maps, chatId: chatId });
+
+    chatStates.set(chatId, {
+      chatId,
+      maps,
+      step: null,
+    });
+    deleteStates.delete(chatId);
     bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     console.error('Error in handleAddSmoke:', error);
@@ -92,7 +111,7 @@ const handleAddSmoke = async (msg) => {
 };
 
 // Обработчик команды /deletesmoke
-const handleDeleteSmoke = async (msg) => {
+export const handleDeleteSmoke = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
   const adminIds = getAdminIds();
 
@@ -102,9 +121,6 @@ const handleDeleteSmoke = async (msg) => {
     return;
   }
 
-  chatStates.delete(chatId);
-  deleteStates.delete(chatId);
-
   try {
     const maps = await getMaps();
     const keyboard = createKeyboard('deletesmoke_map', MAP_TYPES);
@@ -112,9 +128,10 @@ const handleDeleteSmoke = async (msg) => {
 
     deleteStates.set(chatId, {
       step: 'select_map',
-      maps: maps,
-      chatId: chatId
+      maps,
+      chatId
     });
+    chatStates.delete(chatId);
 
     bot.sendMessage(chatId, mapsMessage, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
@@ -124,7 +141,7 @@ const handleDeleteSmoke = async (msg) => {
 };
 
 // Обработчик команды /reset
-const handleReset = async (msg) => {
+export const handleReset = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
   const adminIds = getAdminIds();
 
@@ -141,9 +158,9 @@ const handleReset = async (msg) => {
 };
 
 // Обработчик текстовых сообщений для админ-панели
-const handleAdminMessage = async (msg) => {
+export const handleAdminMessage = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
-  const text = msg.text;
+  const text = msg.text ?? '';
 
   // Игнорируем команды (они обрабатываются отдельно)
   if (text && text.startsWith('/')) {
@@ -187,16 +204,20 @@ const handleAdminMessage = async (msg) => {
 };
 
 // Обработчик названия смока
-const handleSmokeNameSelection = async (msg, text) => {
+export const handleSmokeNameSelection = async (msg: BotMessage, text: string) => {
   const chatId = msg.chat.id;
   const state = chatStates.get(chatId);
+  if (!state) {
+    bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
   state.name = text;
   state.step = 'instructions';
   bot.sendMessage(chatId, 'Enter smoke setup instructions:');
 };
 
 // Функция для отправки запроса на изображение/видео
-const sendImagePrompt = async (chatId) => {
+export const sendImagePrompt = async (chatId: number) => {
   const message = `📸 Send smoke image/video:
 
 Recommendations:
@@ -209,16 +230,20 @@ Recommendations:
 };
 
 // Обработчик инструкций смока
-const handleSmokeInstructionsSelection = async (msg, text) => {
+export const handleSmokeInstructionsSelection = async (msg: BotMessage, text: string) => {
   const chatId = msg.chat.id;
   const state = chatStates.get(chatId);
+  if (!state) {
+    bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
   state.lineup_instructions = text;
   state.step = 'image';
   await sendImagePrompt(chatId); // Вызываем новую функцию для отправки запроса
 };
 
 // Обработчик фото
-const handlePhoto = async (msg) => {
+export const handlePhoto = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
   const mediaGroupId = msg.media_group_id;
   const state = chatStates.get(chatId);
@@ -227,37 +252,40 @@ const handlePhoto = async (msg) => {
     return; // Игнорируем фото, если не в процессе добавления гранаты
   }
 
+  if (!msg.photo?.length) {
+    return;
+  }
+
   // Инициализируем хранилище для медиагруппы
-  if (!mediaGroupStorage.has(mediaGroupId)) {
+  if (mediaGroupId && !mediaGroupStorage.has(mediaGroupId)) {
     mediaGroupStorage.set(mediaGroupId, {
-      chatId: chatId,
+      chatId,
+      mediaGroupId,
       files: [],
       expectedCount: 0,
-      receivedCount: 0,
-      mediaGroupId: mediaGroupId
+      receivedCount: 0
     });
   }
 
-  mediaGroupStorage.get(mediaGroupId);
   const photo = msg.photo[msg.photo.length - 1]; // Берем самое большое фото
   const fileId = photo.file_id;
 
   // Проверяем, является ли это частью медиагруппы
-  if (msg.media_group_id) {
-    await handleMediaGroupFile(chatId, mediaGroupId, { type: 'photo', fileId: fileId });
-    await processCompleteMediaGroup(mediaGroupId)
+  if (mediaGroupId) {
+    await handleMediaGroupFile(chatId, mediaGroupId, { type: 'photo', fileId, caption: state.lineup_instructions ?? null });
+    await processCompleteMediaGroup(mediaGroupId);
   } else {
     state.step = null;
     await saveSmokeToDatabase(state, [{
       type: 'photo',
-      fileId: fileId,
-      caption: caption
+      fileId,
+      caption: state.lineup_instructions ?? null
     }]);
   }
 };
 
 // Обработчик видео
-const handleVideo = async (msg) => {
+export const handleVideo = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
   const mediaGroupId = msg.media_group_id;
   const state = chatStates.get(chatId);
@@ -266,23 +294,25 @@ const handleVideo = async (msg) => {
     return; // Игнорируем видео, если не в процессе добавления гранаты
   }
 
-  const video = msg.video;
-  const fileId = video.file_id;
+  const fileId = msg.video?.file_id;
+
+  if (!fileId) {
+    return;
+  }
 
   // Проверяем, является ли это частью медиагруппы
-  if (msg.media_group_id) {
-    await handleMediaGroupFile(chatId, msg.media_group_id, { type: 'video', fileId: fileId });
-    await processCompleteMediaGroup(mediaGroupId)
+  if (mediaGroupId) {
+    await handleMediaGroupFile(chatId, mediaGroupId, { type: 'video', fileId, caption: state.lineup_instructions ?? null });
+    await processCompleteMediaGroup(mediaGroupId);
   } else {
     // Одиночное видео
     state.step = null;
-    await saveSmokeToDatabase(state, [{ type: 'video', fileId: fileId }]);
-    await processCompleteMediaGroup(mediaGroupId)
+    await saveSmokeToDatabase(state, [{ type: 'video', fileId, caption: state.lineup_instructions ?? null }]);
   }
 };
 
 // Обработчик медиагруппы
-const handleMediaGroup = async (messages) => {
+export const handleMediaGroup = async (messages: BotMessage[]) => {
   const msg = messages[0];
   const chatId = msg.chat.id;
   const mediaGroupId = msg.media_group_id;
@@ -292,10 +322,15 @@ const handleMediaGroup = async (messages) => {
     return; // Игнорируем медиагруппу, если не в процессе добавления гранаты
   }
 
+  if (!mediaGroupId) {
+    return;
+  }
+
   // Инициализируем хранилище для медиагруппы
   if (!mediaGroupStorage.has(mediaGroupId)) {
     mediaGroupStorage.set(mediaGroupId, {
-      chatId: chatId,
+      chatId,
+      mediaGroupId,
       files: [],
       expectedCount: messages.length,
       receivedCount: 0
@@ -304,6 +339,10 @@ const handleMediaGroup = async (messages) => {
 
   const groupData = mediaGroupStorage.get(mediaGroupId);
 
+  if (!groupData) {
+    return;
+  }
+
   // Отправляем сообщение о начале обработки медиагруппы
   if (groupData.receivedCount === 0) {
     bot.sendMessage(chatId, '📸 Processing media group... Please wait for all files to be received.');
@@ -311,7 +350,7 @@ const handleMediaGroup = async (messages) => {
 };
 
 // Обработчик файла из медиагруппы
-const handleMediaGroupFile = async (chatId, mediaGroupId, fileData) => {
+export const handleMediaGroupFile = async (chatId: number, mediaGroupId: string, fileData: SuggestedMediaFile) => {
   const groupData = mediaGroupStorage.get(mediaGroupId);
 
   if (!groupData) {
@@ -329,7 +368,7 @@ const handleMediaGroupFile = async (chatId, mediaGroupId, fileData) => {
 };
 
 // Обработка завершенной медиагруппы
-const processCompleteMediaGroup = debounce(async (mediaGroupId) => {
+export const processCompleteMediaGroup = debounce(async (mediaGroupId: string) => {
   const groupData = mediaGroupStorage.get(mediaGroupId);
 
   if (!groupData) { return; }
@@ -362,44 +401,56 @@ const processCompleteMediaGroup = debounce(async (mediaGroupId) => {
 }, 5000);
 
 // Обработчик выбора карты для удаления
-const handleDeleteMapSelection = async (msg, text) => {
+export const handleDeleteMapSelection = async (msg: BotMessage, text: string) => {
   const chatId = msg.chat.id;
   const state = deleteStates.get(chatId);
+
+  if (!state) {
+    bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
 
   let selectedMap = null;
 
   // Проверяем номер карты
-  const mapIndex = parseInt(text) - 1;
-  if (mapIndex >= 0 && mapIndex < state.maps.length) {
+  const mapIndex = Number.parseInt(text, 10) - 1;
+  if (!Number.isNaN(mapIndex) && mapIndex >= 0 && mapIndex < state.maps.length) {
     selectedMap = state.maps[mapIndex];
   } else {
     // Проверяем название карты
-    selectedMap = state.maps.find(map => map.name === text);
+    selectedMap = state.maps.find((map) => map.name === text);
   }
 
-  if (!selectedMap) {
+  const isAllSelection = text === 'all';
+
+  if (!selectedMap && !isAllSelection) {
     bot.sendMessage(chatId, '❌ Invalid map selection. Try again.');
     return;
   }
 
-  state.selectedMap = selectedMap;
+  state.selectedMap = selectedMap ?? undefined;
+  state.selectedMapLabel = selectedMap?.display_name ?? 'All maps';
   state.step = 'select_smoke';
 
   try {
-    const smokes = mapName === 'all' ? await getAllSmokes() : await getSmokesByMap(selectedMap.name);
+    const smokes = isAllSelection
+      ? await getAllSmokes()
+      : await getSmokesByMap(selectedMap!.name);
 
     if (smokes.length === 0) {
-      bot.sendMessage(chatId, `❌ No smokes found on ${escapeMarkdown(selectedMap.display_name)} for deletion\.`);
+      const mapDisplay = escapeMarkdown(state.selectedMapLabel ?? 'the selected map');
+      bot.sendMessage(chatId, `❌ No smokes found on ${mapDisplay} for deletion!`);
       deleteStates.delete(chatId);
       return;
     }
 
-    let smokesMessage = `🗑 *Choose a smoke to delete on ${escapeMarkdown(selectedMap.display_name)}:*`;
+    const mapDisplay = escapeMarkdown(state.selectedMapLabel ?? 'All maps');
+    let smokesMessage = `🗑 *Choose a smoke to delete on ${mapDisplay}:*`;
 
     smokes.forEach((smoke, index) => {
       const difficulty = getDifficultyEmoji(smoke.difficulty);
       const side = getSideEmoji(smoke.side);
-      const line = getLineEmoji(smoke.line);
+      const line = getLineEmoji(smoke.line ?? 'all');
 
       smokesMessage += `${index + 1}. *${escapeMarkdown(smoke.name)}* ${difficulty} ${side} ${line}`;
       smokesMessage += `   📋 ${escapeMarkdown(smoke.lineup_instructions)}`;
@@ -411,15 +462,21 @@ const handleDeleteMapSelection = async (msg, text) => {
     bot.sendMessage(chatId, smokesMessage, { parse_mode: 'Markdown' });
 
   } catch (error) {
-    bot.sendMessage(chatId, '❌ Error getting smokes');
+    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
+    bot.sendMessage(chatId, `❌ Error getting smokes: ${fallbackMessage}`);
     deleteStates.delete(chatId);
   }
 };
 
 // Обработчик выбора смока для удаления
-const handleDeleteSmokeSelection = async (msg, text) => {
+export const handleDeleteSmokeSelection = async (msg: BotMessage, text: string) => {
   const chatId = msg.chat.id;
   const state = deleteStates.get(chatId);
+
+  if (!state || !state.smokes) {
+    bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
 
   if (text.toLowerCase() === 'cancel') {
     bot.sendMessage(chatId, '❌ Deletion cancelled.');
@@ -427,8 +484,8 @@ const handleDeleteSmokeSelection = async (msg, text) => {
     return;
   }
 
-  const smokeIndex = parseInt(text) - 1;
-  if (smokeIndex < 0 || smokeIndex >= state.smokes.length) {
+  const smokeIndex = Number.parseInt(text, 10) - 1;
+  if (Number.isNaN(smokeIndex) || smokeIndex < 0 || smokeIndex >= state.smokes.length) {
     bot.sendMessage(chatId, '❌ Invalid grenade number. Try again.');
     return;
   }
@@ -441,14 +498,14 @@ const handleDeleteSmokeSelection = async (msg, text) => {
 ⚠️ *Confirm deletion*
 
 *Grenade:* ${selectedSmoke.name}
-*Map:* ${state.selectedMap.display_name}
+*Map:* ${escapeMarkdown(state.selectedMapLabel ?? state.selectedMap?.display_name ?? 'All maps')}
 *Difficulty:* ${getDifficultyEmoji(selectedSmoke.difficulty)} ${selectedSmoke.difficulty}
 *Side:* ${getSideEmoji(selectedSmoke.side)} ${selectedSmoke.side}
 *Line:* ${selectedSmoke.line ? getLineEmoji(selectedSmoke.line) : 'Not specified'}
 
 *Instructions:* ${escapeMarkdown(selectedSmoke.lineup_instructions)}
 
-⚠️ *This action cannot be undone\!*
+⚠️ *This action cannot be undone!*
 
 Send "YES" to confirm deletion or "NO" to cancel:
   `;
@@ -457,11 +514,17 @@ Send "YES" to confirm deletion or "NO" to cancel:
 };
 
 // Обработчик подтверждения удаления
-const handleConfirmDelete = async (msg, text) => {
+export const handleConfirmDelete = async (msg: BotMessage, text: string) => {
   const chatId = msg.chat.id;
   const state = deleteStates.get(chatId);
 
-  if (text.toLowerCase() === 'yes' || text.toLowerCase() === 'yes') {
+  if (!state || !state.selectedSmoke) {
+    bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    deleteStates.delete(chatId);
+    return;
+  }
+
+  if (text.trim().toLowerCase() === 'yes') {
     try {
       const deletedCount = await deleteSmoke(state.selectedSmoke.id);
 
@@ -470,7 +533,7 @@ const handleConfirmDelete = async (msg, text) => {
 ✅ Grenade successfully deleted!
 
 *Deleted grenade:* ${escapeMarkdown(state.selectedSmoke.name)}
-*Map:* ${escapeMarkdown(state.selectedMap.display_name)}
+*Map:* ${escapeMarkdown(state.selectedMapLabel ?? state.selectedMap?.display_name ?? 'All maps')}
 
 Use /deletesmoke to delete other grenades.        `;
         bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
@@ -478,7 +541,8 @@ Use /deletesmoke to delete other grenades.        `;
         bot.sendMessage(chatId, '❌ Error deleting grenade.');
       }
     } catch (error) {
-      bot.sendMessage(chatId, `❌ Error deleting grenade: ${error.message}`);
+      const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
+      bot.sendMessage(chatId, `❌ Error deleting grenade: ${fallbackMessage}`);
     }
   } else {
     bot.sendMessage(chatId, '❌ Deletion cancelled.');
@@ -489,20 +553,38 @@ Use /deletesmoke to delete other grenades.        `;
 };
 
 // Сохранение смока в базу данных
-const saveSmokeToDatabase = async (state, mediaFiles) => {
+export const saveSmokeToDatabase = async (state: AddSmokeState, mediaFiles: SuggestedMediaFile[]) => {
   const chatId = state.chatId;
-  try {
-    const smokeId = await addSmoke(state.selectedMap.name, state);
 
-    if (mediaFiles && mediaFiles.length > 0) {
+  if (!state.selectedMap || !state.side || !state.line || !state.grenadeType || !state.difficulty || !state.name || !state.lineup_instructions) {
+    bot.sendMessage(chatId, '❌ Incomplete smoke data. Please restart the process.', { parse_mode: 'Markdown' });
+    chatStates.delete(chatId);
+    return;
+  }
+
+  try {
+    const smokePayload: NewSmokeInput = {
+      name: state.name,
+      lineup_instructions: state.lineup_instructions,
+      difficulty: state.difficulty,
+      side: state.side,
+      line: state.line,
+      grenadeType: state.grenadeType,
+      imageUrl: null,
+    };
+
+    const smokeId = await addSmoke(state.selectedMap.name, smokePayload);
+
+    if (mediaFiles.length > 0) {
       for (const file of mediaFiles) {
-        await saveSmokeImage(smokeId, file.fileId, file.type, file.caption);
+        await saveSmokeImage(smokeId, file.fileId, file.type, file.caption ?? state.lineup_instructions);
       }
     }
+
     const successMessage = `Grenade successfully added!
 
-Name: ${state.name}
-Instructions: ${state.lineup_instructions}
+Name: ${escapeMarkdown(state.name)}
+Instructions: ${escapeMarkdown(state.lineup_instructions)}
 
 ====================================
 
@@ -515,15 +597,20 @@ ${getDifficultyEmoji(state.difficulty)} Difficulty: ${getDifficultyName(state.di
     bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
     chatStates.delete(chatId);
   } catch (error) {
-    bot.sendMessage(chatId, `Error saving grenade: ${error}`);
+    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
+    bot.sendMessage(chatId, `Error saving grenade: ${fallbackMessage}`);
     chatStates.delete(chatId);
   }
 };
 
 // Обработчик callback кнопок
-const handleAdminCallbackQuery = async (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
-  const data = callbackQuery.data;
+export const handleAdminCallbackQuery = async (callbackQuery: BotCallbackQuery) => {
+  const chatId = resolveChatId(callbackQuery);
+  const data = callbackQuery.data ?? '';
+
+  if (chatId === undefined) {
+    return;
+  }
 
   // Проверка на админа
   const adminIds = getAdminIds();
@@ -553,21 +640,40 @@ const handleAdminCallbackQuery = async (callbackQuery) => {
       const mapName = data.replace('deletesmoke_map_', '');
       await handleDeleteSmokeMapSelection(callbackQuery, mapName);
     } else if (data.startsWith('deletesmoke_smoke_')) {
-      const smokeId = data.replace('deletesmoke_smoke_', '');
-      await handleDeleteSmokeSelectionCallback(callbackQuery, smokeId);
+      const smokeId = Number.parseInt(data.replace('deletesmoke_smoke_', ''), 10);
+      if (Number.isNaN(smokeId)) {
+        bot.sendMessage(chatId, '❌ Invalid smoke identifier', { parse_mode: 'Markdown' });
+      } else {
+        await handleDeleteSmokeSelectionCallback(callbackQuery, smokeId);
+      }
     } else if (data.startsWith('deletesmoke_confirm_')) {
-      const smokeId = data.replace('deletesmoke_confirm_', '');
-      await handleDeleteSmokeConfirm(callbackQuery, smokeId);
-    } else if (data.startsWith('deletesmoke_cancel')) {
+      const smokeId = Number.parseInt(data.replace('deletesmoke_confirm_', ''), 10);
+      if (Number.isNaN(smokeId)) {
+        bot.sendMessage(chatId, '❌ Invalid smoke identifier', { parse_mode: 'Markdown' });
+      } else {
+        await handleDeleteSmokeConfirm(callbackQuery, smokeId);
+      }
+    } else if (data === 'deletesmoke_cancel') {
       await handleDeleteSmokeCancel(callbackQuery);
     } else if (data.startsWith('approve_suggestion_')) {
-      const suggestionId = data.replace('approve_suggestion_', '');
-      await handleApproveSuggestion(callbackQuery, suggestionId);
+      const suggestionId = Number.parseInt(data.replace('approve_suggestion_', ''), 10);
+      if (Number.isNaN(suggestionId)) {
+        bot.sendMessage(chatId, '❌ Invalid suggestion identifier', { parse_mode: 'Markdown' });
+      } else {
+        await handleApproveSuggestion(callbackQuery, suggestionId);
+      }
     } else if (data.startsWith('reject_suggestion_')) {
-      const suggestionId = data.replace('reject_suggestion_', '');
-      await handleRejectSuggestion(callbackQuery, suggestionId);
+      const suggestionId = Number.parseInt(data.replace('reject_suggestion_', ''), 10);
+      if (Number.isNaN(suggestionId)) {
+        bot.sendMessage(chatId, '❌ Invalid suggestion identifier', { parse_mode: 'Markdown' });
+      } else {
+        await handleRejectSuggestion(callbackQuery, suggestionId);
+      }
     } else if (data === 'back_to_suggestions') {
-      await handleViewSuggestions(callbackQuery.message);
+      const messageContext = callbackQuery.message;
+      if (messageContext) {
+        await handleViewSuggestions(messageContext);
+      }
     } else {
       console.log('No matching admin callback handler found for:', data);
     }
@@ -578,8 +684,13 @@ const handleAdminCallbackQuery = async (callbackQuery) => {
 };
 
 // Обработчик выбора карты для добавления смока
-const handleAddSmokeMapSelection = async (callbackQuery, mapName) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleAddSmokeMapSelection = async (callbackQuery: BotCallbackQuery, mapName: string) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   const state = chatStates.get(chatId);
 
   if (!state) {
@@ -587,7 +698,12 @@ const handleAddSmokeMapSelection = async (callbackQuery, mapName) => {
     return;
   }
 
-  const selectedMap = state.maps.find(map => map.name === mapName);
+  if (!isMapKey(mapName)) {
+    bot.sendMessage(chatId, '❌ Map not found', { parse_mode: 'Markdown' });
+    return;
+  }
+
+  const selectedMap = state.maps.find((map) => map.name === mapName);
   if (!selectedMap) {
     bot.sendMessage(chatId, '❌ Map not found', { parse_mode: 'Markdown' });
     return;
@@ -605,12 +721,21 @@ ${getMapEmoji(mapName)} Map: ${getMapName(mapName)}`;
 };
 
 // Обработчик выбора стороны для добавления смока
-const handleAddSmokeSideSelection = async (callbackQuery, side) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleAddSmokeSideSelection = async (callbackQuery: BotCallbackQuery, side: string) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
 
   const state = chatStates.get(chatId);
-  if (!state) {
+  if (!state || !state.selectedMap) {
     bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (!isSideKey(side)) {
+    bot.sendMessage(chatId, '❌ Invalid side', { parse_mode: 'Markdown' });
     return;
   }
 
@@ -627,12 +752,21 @@ ${getSideEmoji(state.side)} Side: ${getSideName(state.side)}`;
 };
 
 // Обработчик выбора линии для добавления смока
-const handleAddSmokeLineSelection = async (callbackQuery, line) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleAddSmokeLineSelection = async (callbackQuery: BotCallbackQuery, line: string) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
 
   const state = chatStates.get(chatId);
-  if (!state) {
+  if (!state || !state.selectedMap || !state.side) {
     bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (!isLineKey(line)) {
+    bot.sendMessage(chatId, '❌ Invalid line', { parse_mode: 'Markdown' });
     return;
   }
 
@@ -649,12 +783,21 @@ ${getLineEmoji(state.line)} Line: ${getLineName(state.line)}`;
 };
 
 // Обработчик выбора типа гранаты для добавления смока
-const handleAddSmokeGrenadeSelection = async (callbackQuery, grenadeType) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleAddSmokeGrenadeSelection = async (callbackQuery: BotCallbackQuery, grenadeType: string) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
 
   const state = chatStates.get(chatId);
-  if (!state) {
+  if (!state || !state.selectedMap || !state.side || !state.line) {
     bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (!isGrenadeTypeKey(grenadeType) || grenadeType === 'all') {
+    bot.sendMessage(chatId, '❌ Invalid grenade type', { parse_mode: 'Markdown' });
     return;
   }
 
@@ -671,13 +814,23 @@ ${getGrenadeTypeEmoji(state.grenadeType)} Grenade type: ${getGrenadeTypeName(sta
 };
 
 // Обработчик выбора сложности для добавления смока
-const handleAddSmokeDifficultySelection = async (callbackQuery, difficulty) => {
+export const handleAddSmokeDifficultySelection = async (callbackQuery: BotCallbackQuery, difficulty: string) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   try {
-    const chatId = callbackQuery.message.chat.id;
     const state = chatStates.get(chatId);
 
-    if (!state) {
+    if (!state || !state.selectedMap || !state.side || !state.line || !state.grenadeType) {
       bot.sendMessage(chatId, '❌ State not found', { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (!isDifficultyKey(difficulty) || difficulty === 'all') {
+      bot.sendMessage(chatId, '❌ Invalid difficulty', { parse_mode: 'Markdown' });
       return;
     }
 
@@ -704,8 +857,13 @@ Enter the name of the new smoke:`;
 //////////////////////////////////////////////////////////////////////////
 
 // Обработчик выбора карты для удаления смока
-const handleDeleteSmokeMapSelection = async (callbackQuery, mapName) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleDeleteSmokeMapSelection = async (callbackQuery: BotCallbackQuery, mapName: string) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   const state = deleteStates.get(chatId);
 
   if (!state) {
@@ -713,37 +871,40 @@ const handleDeleteSmokeMapSelection = async (callbackQuery, mapName) => {
     return;
   }
 
-  const selectedMap = state.maps.find(map => map.name === mapName) || { name: 'all' };
+  const isAllSelection = mapName === 'all';
+  const selectedMap = state.maps.find((map) => map.name === mapName);
 
-  if (!selectedMap && mapName !== 'all') {
+  if (!selectedMap && !isAllSelection) {
     bot.sendMessage(chatId, '❌ Map not found');
     return;
   }
 
-  state.selectedMap = selectedMap;
+  state.selectedMap = selectedMap ?? undefined;
+  state.selectedMapLabel = selectedMap?.display_name ?? 'All maps';
   state.step = 'select_smoke';
 
   try {
-    const smokes = mapName === 'all' ? await getAllSmokes() : await getSmokesByMap(selectedMap.name);
+    const smokes = isAllSelection
+      ? await getAllSmokes()
+      : await getSmokesByMap(selectedMap!.name);
 
     if (smokes.length === 0) {
-      const message = `❌ No smokes found on ${selectedMap.name} for deletion.`;
-      bot.sendMessage(chatId, message);
+      bot.sendMessage(chatId, '❌ No smokes found on this map');
       deleteStates.delete(chatId);
       return;
     }
 
-    // Создаем кнопки для выбора смока
+    state.smokes = smokes;
+
     const keyboard = {
-      inline_keyboard: smokes.map((smoke, index) => [{
-        text: `${getDifficultyEmoji(smoke.difficulty)} ${smoke.name} (${getSideEmoji(smoke.side)} ${getLineEmoji(smoke.line)})`,
+      inline_keyboard: smokes.map((smoke) => [{
+        text: `${getDifficultyEmoji(smoke.difficulty)} ${smoke.name} (${getSideEmoji(smoke.side)} ${getLineEmoji(smoke.line ?? 'all')})`,
         callback_data: `deletesmoke_smoke_${smoke.id}`
       }])
     };
 
-    const smokesMessage = `🗑 *Choose a smoke to delete on ${getMapName(selectedMap.name)}:*`;
+    const smokesMessage = `🗑 *Choose a smoke to delete on ${state.selectedMapLabel}:*`;
 
-    state.smokes = smokes;
     bot.sendMessage(chatId, smokesMessage, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     console.error('handleDeleteSmokeMapSelection error:', error);
@@ -753,16 +914,20 @@ const handleDeleteSmokeMapSelection = async (callbackQuery, mapName) => {
 };
 
 // Обработчик выбора смока для удаления (callback)
-const handleDeleteSmokeSelectionCallback = async (callbackQuery, smokeId) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleDeleteSmokeSelectionCallback = async (callbackQuery: BotCallbackQuery, smokeId: number) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
 
   const state = deleteStates.get(chatId);
-  if (!state) {
+  if (!state || !state.smokes) {
     bot.sendMessage(chatId, '❌ State not found');
     return;
   }
 
-  const selectedSmoke = state.smokes.find(smoke => smoke.id == smokeId);
+  const selectedSmoke = state.smokes.find((smoke) => smoke.id === smokeId);
   if (!selectedSmoke) {
     bot.sendMessage(chatId, '❌ Smoke not found');
     return;
@@ -771,7 +936,6 @@ const handleDeleteSmokeSelectionCallback = async (callbackQuery, smokeId) => {
   state.selectedSmoke = selectedSmoke;
   state.step = 'confirm_delete';
 
-  // Создаем кнопки для подтверждения
   const keyboard = {
     inline_keyboard: [
       [{ text: '✅ Yes, delete', callback_data: `deletesmoke_confirm_${smokeId}` }],
@@ -779,13 +943,18 @@ const handleDeleteSmokeSelectionCallback = async (callbackQuery, smokeId) => {
     ]
   };
 
+  const mapLabel = state.selectedMapLabel ?? state.selectedMap?.display_name ?? 'All maps';
+  const mapEmoji = state.selectedMap ? getMapEmoji(state.selectedMap.name) : '🌐';
+  const lineEmoji = selectedSmoke.line ? getLineEmoji(selectedSmoke.line) : '➖';
+  const lineName = selectedSmoke.line ? getLineName(selectedSmoke.line) : 'Not specified';
+
   const confirmMessage = `⚠️ *Confirm deletion*
 
-${selectedSmoke.name} Grenade: ${selectedSmoke.name}
-${getMapEmoji(state.selectedMap.name)} Map: ${getMapName(state.selectedMap.name)}
+${escapeMarkdown(selectedSmoke.name)} Grenade: ${escapeMarkdown(selectedSmoke.name)}
+${mapEmoji} Map: ${escapeMarkdown(mapLabel)}
 ${getDifficultyEmoji(selectedSmoke.difficulty)} Difficulty: ${getDifficultyName(selectedSmoke.difficulty)}
 ${getSideEmoji(selectedSmoke.side)} Side: ${getSideName(selectedSmoke.side)}
-${selectedSmoke.line ? getLineEmoji(selectedSmoke.line) : 'Not specified'} Line: ${getLineName(selectedSmoke.line)}
+${lineEmoji} Line: ${lineName}
 
 *Instructions:* ${escapeMarkdown(selectedSmoke.lineup_instructions)}
 
@@ -795,8 +964,13 @@ ${selectedSmoke.line ? getLineEmoji(selectedSmoke.line) : 'Not specified'} Line:
 };
 
 // Обработчик подтверждения удаления
-const handleDeleteSmokeConfirm = async (callbackQuery, smokeId) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleDeleteSmokeConfirm = async (callbackQuery: BotCallbackQuery, smokeId: number) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   const state = deleteStates.get(chatId);
   if (!state) {
     bot.sendMessage(chatId, '❌ State not found');
@@ -806,11 +980,11 @@ const handleDeleteSmokeConfirm = async (callbackQuery, smokeId) => {
   try {
     const deletedCount = await deleteSmoke(smokeId);
 
-    if (deletedCount > 0) {
+    if (deletedCount > 0 && state.selectedSmoke) {
       const successMessage = `✅ Grenade successfully deleted!
 
-*Deleted grenade:* ${state.selectedSmoke.name}
-*Map:* ${state.selectedMap.name}
+*Deleted grenade:* ${escapeMarkdown(state.selectedSmoke.name)}
+*Map:* ${escapeMarkdown(state.selectedMapLabel ?? state.selectedMap?.display_name ?? 'All maps')}
 
 Use /deletesmoke to delete other grenades.`;
 
@@ -819,30 +993,38 @@ Use /deletesmoke to delete other grenades.`;
       bot.sendMessage(chatId, '❌ Error deleting grenade.');
     }
   } catch (error) {
-    bot.sendMessage(chatId, `❌ Error deleting grenade: ${error.message}`);
-
+    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
+    bot.sendMessage(chatId, `❌ Error deleting grenade: ${fallbackMessage}`);
   } finally {
     deleteStates.delete(chatId);
   }
 };
 
-const handleDeleteSmokeCancel = async (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleDeleteSmokeCancel = async (callbackQuery: BotCallbackQuery) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   deleteStates.delete(chatId);
-  bot.deleteMessage(chatId, callbackQuery.message.message_id);
+  const messageId = callbackQuery.message?.message_id;
+  if (messageId) {
+    bot.deleteMessage(chatId, messageId);
+  }
+  bot.sendMessage(chatId, '❌ Deletion cancelled.');
 };
 
 // Обработчик команды /suggestgrenade
 
 
 // Обработчик команды /viewsuggestions
-const handleViewSuggestions = async (msg) => {
+export const handleViewSuggestions = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
   const adminIds = getAdminIds();
 
   if (!adminIds.includes(chatId)) {
-    const message = `❌ You don't have permission to view suggestions`;
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, '❌ You don\'t have permission to view suggestions', { parse_mode: 'Markdown' });
     return;
   }
 
@@ -878,18 +1060,24 @@ const handleViewSuggestions = async (msg) => {
 };
 
 // Обработчик выбора предложенной гранаты для просмотра
-const handleSuggestionSelection = async (msg) => {
+export const handleSuggestionSelection = async (msg: BotMessage) => {
   const chatId = msg.chat.id;
-  const text = msg.text;
+  const text = msg.text ?? '';
   const adminIds = getAdminIds();
 
   if (!adminIds.includes(chatId)) {
     return;
   }
 
+  const suggestionIndex = Number.parseInt(text, 10) - 1;
+
+  if (Number.isNaN(suggestionIndex)) {
+    bot.sendMessage(chatId, '❌ Please send the number of the suggestion you want to review.');
+    return;
+  }
+
   try {
     const suggestedSmokes = await getAllSuggestedSmokes();
-    const suggestionIndex = parseInt(text) - 1;
 
     if (suggestionIndex < 0 || suggestionIndex >= suggestedSmokes.length) {
       bot.sendMessage(chatId, '❌ Invalid suggestion number. Try again.');
@@ -899,13 +1087,17 @@ const handleSuggestionSelection = async (msg) => {
     const selectedSuggestion = suggestedSmokes[suggestionIndex];
     const mediaFiles = await getSuggestedSmokeMedia(selectedSuggestion.id);
 
+    const lineEmoji = selectedSuggestion.line ? getLineEmoji(selectedSuggestion.line) : '➖';
+    const lineName = selectedSuggestion.line ? getLineName(selectedSuggestion.line) : 'Not specified';
+    const mediaCount = mediaFiles.length;
+
     const message = `📋 *Suggestion Details*
 
 *Grenade:* ${escapeMarkdown(selectedSuggestion.name)}
 *Map:* ${escapeMarkdown(selectedSuggestion.map_display_name)}
 *Difficulty:* ${getDifficultyEmoji(selectedSuggestion.difficulty)} ${selectedSuggestion.difficulty}
 *Side:* ${getSideEmoji(selectedSuggestion.side)} ${selectedSuggestion.side}
-*Line:* ${selectedSuggestion.line ? getLineEmoji(selectedSuggestion.line) : 'Not specified'}
+*Line:* ${lineEmoji} ${lineName}
 *Grenade Type:* ${getGrenadeTypeEmoji(selectedSuggestion.grenade_type)} ${selectedSuggestion.grenade_type}
 
 *Instructions:*
@@ -913,7 +1105,10 @@ ${escapeMarkdown(selectedSuggestion.lineup_instructions)}
 
 *Submitted by:* ${escapeMarkdown(selectedSuggestion.username || 'Unknown')}
 *Date:* ${new Date(selectedSuggestion.suggested_at).toLocaleString()}
-*Media files:* ${mediaFiles.length}`;
+*Media files:* ${mediaCount}
+
+✅ Approve: use the buttons below
+❌ Reject: use the buttons below`;
 
     const keyboard = {
       inline_keyboard: [
@@ -932,8 +1127,13 @@ ${escapeMarkdown(selectedSuggestion.lineup_instructions)}
 };
 
 // Обработчик одобрения предложения
-const handleApproveSuggestion = async (callbackQuery, suggestionId) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleApproveSuggestion = async (callbackQuery: BotCallbackQuery, suggestionId: number) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   const adminIds = getAdminIds();
 
   if (!adminIds.includes(chatId)) {
@@ -951,13 +1151,16 @@ const handleApproveSuggestion = async (callbackQuery, suggestionId) => {
     const newSmokeId = await approveSuggestedSmoke(suggestionId);
 
     if (newSmokeId) {
+      const lineEmoji = suggestion.line ? getLineEmoji(suggestion.line) : '➖';
+      const lineName = suggestion.line ? getLineName(suggestion.line) : 'Not specified';
+
       const successMessage = `✅ *Suggestion approved successfully!*
 
 *Grenade:* ${escapeMarkdown(suggestion.name)}
 *Map:* ${escapeMarkdown(suggestion.map_display_name)}
 *Difficulty:* ${getDifficultyEmoji(suggestion.difficulty)} ${suggestion.difficulty}
 *Side:* ${getSideEmoji(suggestion.side)} ${suggestion.side}
-*Line:* ${suggestion.line ? getLineEmoji(suggestion.line) : 'Not specified'}
+*Line:* ${lineEmoji} ${lineName}
 *Grenade Type:* ${getGrenadeTypeEmoji(suggestion.grenade_type)} ${suggestion.grenade_type}
 
 *Instructions:*
@@ -973,14 +1176,20 @@ The grenade has been added to the main database.`;
       bot.sendMessage(chatId, '❌ Error approving suggestion.', { parse_mode: 'Markdown' });
     }
   } catch (error) {
+    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error approving suggestion:', error);
-    bot.sendMessage(chatId, `❌ Error approving suggestion: ${error.message}`, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, `❌ Error approving suggestion: ${fallbackMessage}`, { parse_mode: 'Markdown' });
   }
 };
 
 // Обработчик отклонения предложения
-const handleRejectSuggestion = async (callbackQuery, suggestionId) => {
-  const chatId = callbackQuery.message.chat.id;
+export const handleRejectSuggestion = async (callbackQuery: BotCallbackQuery, suggestionId: number) => {
+  const chatId = resolveChatId(callbackQuery);
+
+  if (chatId === undefined) {
+    return;
+  }
+
   const adminIds = getAdminIds();
 
   if (!adminIds.includes(chatId)) {
@@ -998,13 +1207,16 @@ const handleRejectSuggestion = async (callbackQuery, suggestionId) => {
     const deletedCount = await rejectSuggestedSmoke(suggestionId);
 
     if (deletedCount > 0) {
+      const lineEmoji = suggestion.line ? getLineEmoji(suggestion.line) : '➖';
+      const lineName = suggestion.line ? getLineName(suggestion.line) : 'Not specified';
+
       const successMessage = `❌ *Suggestion rejected successfully!*
 
 *Grenade:* ${escapeMarkdown(suggestion.name)}
 *Map:* ${escapeMarkdown(suggestion.map_display_name)}
 *Difficulty:* ${getDifficultyEmoji(suggestion.difficulty)} ${suggestion.difficulty}
 *Side:* ${getSideEmoji(suggestion.side)} ${suggestion.side}
-*Line:* ${suggestion.line ? getLineEmoji(suggestion.line) : 'Not specified'}
+*Line:* ${lineEmoji} ${lineName}
 *Grenade Type:* ${getGrenadeTypeEmoji(suggestion.grenade_type)} ${suggestion.grenade_type}
 
 *Instructions:*
@@ -1020,13 +1232,14 @@ The suggestion has been removed from the database.`;
       bot.sendMessage(chatId, '❌ Error rejecting suggestion.', { parse_mode: 'Markdown' });
     }
   } catch (error) {
+    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error rejecting suggestion:', error);
-    bot.sendMessage(chatId, `❌ Error rejecting suggestion: ${error.message}`, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, `❌ Error rejecting suggestion: ${fallbackMessage}`, { parse_mode: 'Markdown' });
   }
 };
 
 
-module.exports = {
+export default {
   setAdminBot,
   handleAddSmoke,
   handleDeleteSmoke,

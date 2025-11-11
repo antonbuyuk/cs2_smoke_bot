@@ -1,192 +1,235 @@
-require('dotenv').config();
-const TelegramBot = require('node-telegram-bot-api');
+import 'dotenv/config';
 
-// import type { Message, CallbackQuery, PhotoSize, Video, Document, MediaGroup, MessageEntity, User, Chat } from './utils/bot';
+import { bot } from './utils/bot';
+import type { BotMessage, BotCallbackQuery } from './utils/bot';
 
-const { initDatabase } = require('./database');
-const { setBot, handleStart, handleHelp, handleMaps, handleSmokeSelection, handleSmokeDetailsCallback, handleLineCallback, handleDifficultyCallback, handleCallbackQuery, getDifficultyEmoji, getSideEmoji, getLineEmoji, getSideName, getLineName, getGrenadeTypeEmoji, getGrenadeTypeName, filterStates, handleSuggestMessage, saveSuggestedGrenade, suggestStates } = require('./handlers');
-const { setAdminBot, handleAddSmoke, handleDeleteSmoke, handleReset, handleAdminMessage, handleAdminCallbackQuery, handlePhoto, handleVideo, handleMediaGroup, handleViewSuggestions, handleSuggestionSelection } = require('./handlers');
-const { handleSuggestMediaGroup, handleSuggestPhoto, handleSuggestVideo } = require('./handlers/user-handlers');
+import { initDatabase } from './database';
+import {
+  setBot,
+  handleStart,
+  handleHelp,
+  handleMaps,
+  handleSmokeSelection,
+  handleCallbackQuery,
+  handleSuggestMessage,
+  handleSuggestPhoto,
+  handleSuggestVideo,
+  handleSuggestMediaGroup,
+  filterStates,
+  suggestStates
+} from './handlers/user';
 
-// Инициализация бота
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+import {
+  setAdminBot,
+  handleAddSmoke,
+  handleDeleteSmoke,
+  handleReset,
+  handleAdminMessage,
+  handleAdminCallbackQuery,
+  handlePhoto,
+  handleVideo,
+  handleMediaGroup,
+  handleViewSuggestions,
+  handleSuggestionSelection
+} from './handlers/admin';
 
-// Функция для проверки админа (используем ту же логику, что и в handlers)
-const getAdminIds = () => {
+type MediaGroupPayload = BotMessage | BotMessage[];
+
+const toMessageArray = (payload: MediaGroupPayload): BotMessage[] => Array.isArray(payload) ? payload : [payload];
+
+const resolveChatId = (payload: MediaGroupPayload): number | undefined => {
+  const [firstMessage] = toMessageArray(payload);
+  return firstMessage?.chat?.id;
+};
+
+const getAdminIds = (): number[] => {
   const adminIdsStr = process.env.ADMIN_IDS;
+
   if (!adminIdsStr) {
-    console.error('ADMIN_IDS not found in environment variables, using default admin ID');
-    return [226529821]; // Fallback к дефолтному админу
+    return [226529821];
   }
-  return adminIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+
+  return adminIdsStr
+    .split(',')
+    .map(id => parseInt(id.trim(), 10))
+    .filter(id => !Number.isNaN(id));
 };
 
-const isAdmin = (userId: number) => {
-  const adminIds = getAdminIds();
-  return adminIds.includes(userId);
+const isAdmin = (userId: number | undefined): userId is number => {
+  if (typeof userId !== 'number') {
+    return false;
+  }
+
+  return getAdminIds().includes(userId);
 };
 
-// Передаем экземпляр бота в handlers
 setBot(bot);
 setAdminBot(bot);
 
-// Обработчики медиафайлов
-bot.on('photo', async (msg: object) => {
+bot.on('photo', async (msg: BotMessage) => {
   if (suggestStates.has(msg.chat.id)) {
     await handleSuggestPhoto(msg);
-  } else {
-    await handlePhoto(msg);
+    return;
   }
+
+  await handlePhoto(msg);
 });
 
-bot.on('video', async (msg: object) => {
-  // Проверяем, является ли это предложением гранаты
+bot.on('video', async (msg: BotMessage) => {
   if (suggestStates.has(msg.chat.id)) {
-    await handleSuggestVideo(msg as object);
-  } else {
-    await handleVideo(msg as object);
+    await handleSuggestVideo(msg);
+    return;
   }
+
+  await handleVideo(msg);
 });
 
-bot.on('media_group', async (msg: object) => {
-  if (suggestStates.has(msg.chat.id)) {
-    await handleSuggestMediaGroup(msg as any);
-  } else {
-    await handleMediaGroup(msg as any);
+bot.on('media_group', async (payload: MediaGroupPayload) => {
+  const chatId = resolveChatId(payload);
+
+  if (chatId === undefined) {
+    return;
   }
+
+  const messages = toMessageArray(payload);
+
+  if (suggestStates.has(chatId)) {
+    await handleSuggestMediaGroup(messages);
+    return;
+  }
+
+  await handleMediaGroup(messages);
 });
 
-// Обработчики команд для всех пользователей
 bot.onText(/\/start/, handleStart);
 bot.onText(/\/maps/, handleMaps);
 bot.onText(/\/help/, handleHelp);
 
-// Админские команды (проверка прав в самих обработчиках)
-bot.onText(/\/addsmoke/, (msg: object) => {
-  if (isAdmin(msg.from.id)) {
-    handleAddSmoke(msg as object);
-  } else {
-    bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+bot.onText(/\/addsmoke/, (msg: BotMessage) => {
+  if (isAdmin(msg.from?.id)) {
+    handleAddSmoke(msg);
+    return;
   }
+
+  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
 });
 
-bot.onText(/\/deletesmoke/, (msg: object) => {
-  if (isAdmin(msg.from.id)) {
-    handleDeleteSmoke(msg as object);
-  } else {
-    bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+bot.onText(/\/deletesmoke/, (msg: BotMessage) => {
+  if (isAdmin(msg.from?.id)) {
+    handleDeleteSmoke(msg);
+    return;
   }
+
+  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
 });
 
-bot.onText(/\/reset/, (msg: object) => {
-  if (isAdmin(msg.from.id)) {
-    handleReset(msg as object);
-  } else {
-    bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+bot.onText(/\/reset/, (msg: BotMessage) => {
+  if (isAdmin(msg.from?.id)) {
+    handleReset(msg);
+    return;
   }
+
+  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
 });
 
-bot.onText(/\/viewsuggestions/, (msg: object) => {
-  if (isAdmin(msg.from.id)) {
-    handleViewSuggestions(msg as object);
-  } else {
-    bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+bot.onText(/\/viewsuggestions/, (msg: BotMessage) => {
+  if (isAdmin(msg.from?.id)) {
+    handleViewSuggestions(msg);
+    return;
   }
+
+  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
 });
 
-// Обработчик умного поиска команд
-bot.onText(/^\/([a-zA-Z]+)$/, (msg: object, match: Array<string>) => {
+bot.onText(/^\/([a-zA-Z]+)$/, (msg: BotMessage, match: RegExpExecArray | null) => {
+  if (!match) {
+    return;
+  }
+
   const command = match[1].toLowerCase();
-
-  // Проверяем, не является ли это полной командой
   const userCommands = ['start', 'help'];
   const adminCommands = ['addsmoke', 'deletesmoke', 'reset'];
-  let allCommands = [...userCommands];
 
-  if (isAdmin(msg.from.id)) {
-    allCommands = [...allCommands, ...adminCommands];
+  const availableCommands = isAdmin(msg.from?.id) ? [...userCommands, ...adminCommands] : userCommands;
 
-  }
-
-  if (allCommands.includes(command)) {
-    return; // Пропускаем, если это полная команда
+  if (availableCommands.includes(command)) {
+    return;
   }
 });
 
-// Обработчик текстовых сообщений
-bot.on('message', (msg: object) => {
-  // Проверяем, не является ли это командой
-  if (msg.text && msg.text.startsWith('/')) {
+bot.on('message', (msg: BotMessage) => {
+  if (msg.text?.startsWith('/')) {
     return;
   }
 
-  // Проверяем, не является ли это медиафайлом
   if (msg.photo || msg.video || msg.document || msg.media_group_id) {
-    // Медиафайлы обрабатываются отдельными bot.on('photo'), bot.on('video') и bot.on('media_group')
     return;
   }
 
-  // Проверяем, не является ли это админским сообщением
-  const userId = msg.from.id;
-  const adminIds = getAdminIds();
-  if (adminIds.includes(userId)) {
-    // Обрабатываем админские сообщения
-    handleAdminMessage(msg as object);
-    // Также проверяем, не является ли это выбором предложения для просмотра
-    if (msg.text && !isNaN(parseInt(msg.text))) {
-      handleSuggestionSelection(msg as object);
+  const userId = msg.from?.id;
+
+  if (isAdmin(userId)) {
+    handleAdminMessage(msg);
+
+    if (msg.text && !Number.isNaN(Number.parseInt(msg.text, 10))) {
+      handleSuggestionSelection(msg);
     }
+
     return;
   }
 
-  // Проверяем, не является ли это предложением гранаты
   if (suggestStates.has(msg.chat.id)) {
-    handleSuggestMessage(msg as object);
+    handleSuggestMessage(msg);
     return;
   }
 
-  // Проверяем, не является ли это выбором смоука
-  if (filterStates.has(userId)) {
-    handleSmokeSelection(msg as object);
-    return;
+  if (typeof userId === 'number' && filterStates.has(userId)) {
+    handleSmokeSelection(msg);
   }
-
-  // Игнорируем остальные сообщения от обычных пользователей
 });
 
-// Обработчик callback кнопок
-bot.on('callback_query', async (callbackQuery: object) => {
-  const data = callbackQuery.data;
-  const chatId = callbackQuery.message.chat.id;
+bot.on('callback_query', async (callbackQuery: BotCallbackQuery) => {
+  const { data, message } = callbackQuery;
 
-  console.log('Chat ID:', chatId); // Добавляем логирование
-  console.log('data:', data);
+  if (!data || !message) {
+    return;
+  }
 
   try {
-    // Обработка пользовательских callback'ов
-    if (data.startsWith('start_') || data.startsWith('map_') || data.startsWith('smoke_') || data.startsWith('grenade_') || data.startsWith('line_') || data.startsWith('difficulty_') || data.startsWith('show_all_') || data.startsWith('side_') || data.startsWith('suggest_')) {
+    if (
+      data.startsWith('start_') ||
+      data.startsWith('map_') ||
+      data.startsWith('smoke_') ||
+      data.startsWith('grenade_') ||
+      data.startsWith('line_') ||
+      data.startsWith('difficulty_') ||
+      data.startsWith('show_all_') ||
+      data.startsWith('side_') ||
+      data.startsWith('suggest_')
+    ) {
       await handleCallbackQuery(callbackQuery);
-    }
-    // Обработка админских callback'ов
-    else if (data.startsWith('addsmoke_') || data.startsWith('deletesmoke_') || data.startsWith('approve_suggestion_') || data.startsWith('reject_suggestion_') || data === 'back_to_suggestions') {
-      console.log('Routing to admin callback handler'); // Добавляем логирование
+    } else if (
+      data.startsWith('addsmoke_') ||
+      data.startsWith('deletesmoke_') ||
+      data.startsWith('approve_suggestion_') ||
+      data.startsWith('reject_suggestion_') ||
+      data === 'back_to_suggestions'
+    ) {
+      console.log('Routing to admin callback handler');
       await handleAdminCallbackQuery(callbackQuery);
-    }
-    else {
-      console.log('No matching callback handler found for:', data); // Добавляем логирование
+    } else {
+      console.log('No matching callback handler found for:', data);
     }
   } catch (error) {
     console.error('Error handling callback query:', error);
-    bot.answerCallbackQuery(callbackQuery.id, '❌ Error occurred');
+    bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error occurred' });
   }
 });
 
-// Обработка ошибок
-bot.on('polling_error', (error) => {
+bot.on('polling_error', (error: Error) => {
   console.error('Polling error:', error);
 });
 
-// Инициализация базы данных при запуске
 const initBot = async () => {
   try {
     await initDatabase();
@@ -198,5 +241,4 @@ const initBot = async () => {
   }
 };
 
-// Запускаем бота
 initBot();
