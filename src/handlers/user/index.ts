@@ -21,7 +21,7 @@ import {
   getSmokeById,
   getAllSmokes,
   addSuggestedSmoke,
-  saveSuggestedSmokeImage
+  saveSuggestedSmokeImage,
 } from '../../database/database';
 
 import {
@@ -41,32 +41,19 @@ import {
   SIDE_TYPES,
   GRENADE_TYPES,
   LINE_TYPES,
-  DIFFICULTY_LEVELS
+  DIFFICULTY_LEVELS,
 } from '../../config/constants';
 
-const hasDictionaryKey = <T extends Record<PropertyKey, unknown>>(dictionary: T, key: PropertyKey): key is keyof T =>
-  Object.prototype.hasOwnProperty.call(dictionary, key);
+import {
+  isMapKey,
+  isGrenadeTypeKey,
+  isDifficultyKey,
+  isSideKey,
+  isLineKey,
+  resolveChatId,
+} from '../../utils/guards';
 
-const isMapKey = (value: string): value is MapKey => hasDictionaryKey(MAP_TYPES, value);
-const isGrenadeTypeKey = (value: string): value is GrenadeTypeKey => hasDictionaryKey(GRENADE_TYPES, value);
-const isDifficultyKey = (value: string): value is DifficultyKey => hasDictionaryKey(DIFFICULTY_LEVELS, value);
-const isSideKey = (value: string): value is SideKey => hasDictionaryKey(SIDE_TYPES, value);
-const isLineKey = (value: string): value is LineKey => hasDictionaryKey(LINE_TYPES, value);
-
-type MessageContext = BotMessage | BotCallbackQuery;
-
-const isCallbackContext = (context: MessageContext): context is BotCallbackQuery =>
-  'data' in context;
-
-const resolveChatId = (context: MessageContext): number | undefined => {
-  if (isCallbackContext(context)) {
-    return context.message?.chat?.id;
-  }
-
-  return context.chat?.id;
-};
-
-const resolveUserId = (context: MessageContext): number | undefined => context.from?.id;
+const resolveUserId = (context: BotMessage | BotCallbackQuery): number | undefined => context.from?.id;
 
 // Функция для получения списка админов из переменных окружения
 export const getAdminIds = () => {
@@ -110,7 +97,7 @@ Choose an action:`;
 };
 
 // Обработчик команды /help
-export const handleHelp = async (context: MessageContext) => {
+export const handleHelp = async (context: BotMessage | BotCallbackQuery) => {
   const chatId = resolveChatId(context);
 
   if (chatId === undefined) {
@@ -174,7 +161,7 @@ export const filterStates = new Map<number, FilterState>();
 export const suggestStates = new Map<number, SuggestState>();
 
 // Обработчик команды /maps
-export const handleMaps = async (context: MessageContext) => {
+export const handleMaps = async (context: BotMessage | BotCallbackQuery) => {
   const chatId = resolveChatId(context);
 
   if (chatId === undefined) {

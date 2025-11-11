@@ -2,7 +2,8 @@ import type { TelegramBot, BotMessage, BotCallbackQuery } from '../../utils/bot'
 import {
   addSmoke,
   saveSmokeImage,
-  getMaps, getSmokesByMap,
+  getMaps,
+  getSmokesByMap,
   deleteSmoke,
   getAllSmokes,
   getAllSuggestedSmokes,
@@ -29,7 +30,7 @@ import {
   getLineName,
   getDifficultyName,
   getSideName,
-  DIFFICULTY_LEVELS
+  DIFFICULTY_LEVELS,
 } from '../../config/constants';
 
 import { debounce } from 'lodash';
@@ -42,42 +43,14 @@ import type {
   NewSmokeInput,
 } from '../../utils/types';
 
-const hasDictionaryKey = <T extends Record<PropertyKey, unknown>>(dictionary: T, key: PropertyKey): key is keyof T =>
-  Object.prototype.hasOwnProperty.call(dictionary, key);
-
-type MapDictionaryKey = keyof typeof MAP_TYPES;
-type SideDictionaryKey = keyof typeof SIDE_TYPES;
-type LineDictionaryKey = keyof typeof LINE_TYPES;
-type GrenadeDictionaryKey = keyof typeof GRENADE_TYPES;
-type DifficultyDictionaryKey = keyof typeof DIFFICULTY_LEVELS;
-
-const isMapKey = (value: string): value is Exclude<MapDictionaryKey, 'all'> =>
-  hasDictionaryKey(MAP_TYPES, value) && value !== 'all';
-
-const isSideKey = (value: string): value is SideDictionaryKey =>
-  hasDictionaryKey(SIDE_TYPES, value);
-
-const isLineKey = (value: string): value is LineDictionaryKey =>
-  hasDictionaryKey(LINE_TYPES, value);
-
-const isGrenadeTypeKey = (value: string): value is GrenadeDictionaryKey =>
-  hasDictionaryKey(GRENADE_TYPES, value);
-
-const isDifficultyKey = (value: string): value is DifficultyDictionaryKey =>
-  hasDictionaryKey(DIFFICULTY_LEVELS, value);
-
-type MessageContext = BotMessage | BotCallbackQuery;
-
-const isBotMessage = (context: MessageContext): context is BotMessage =>
-  'chat' in context;
-
-const resolveChatId = (context: MessageContext): number | undefined => {
-  if (isBotMessage(context)) {
-    return context.chat?.id;
-  }
-
-  return context.message?.chat?.id;
-};
+import {
+  isMapKey,
+  isSideKey,
+  isLineKey,
+  isGrenadeTypeKey,
+  isDifficultyKey,
+  resolveChatId,
+} from '../../utils/guards';
 
 let lastMessageId: number[] = [];
 
