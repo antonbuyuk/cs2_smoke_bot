@@ -1,0 +1,18 @@
+{
+  "name": "@cs2/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./database": "./database/index.ts",
+    "./config": "./config/index.ts",
+    "./utils/types": "./utils/types/index.ts",
+    "./utils/guards": "./utils/guards.ts"
+  },
+  "dependencies": {
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "@types/sqlite3": "^3.1.11"
+  }
+}
+
