@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { bot } from './utils/bot';
 import type { BotMessage, BotCallbackQuery } from './utils/bot';
 
-import { initDatabase } from './database';
+import { initDatabase } from '@shared/database';
 import {
   setBot,
   handleStart,

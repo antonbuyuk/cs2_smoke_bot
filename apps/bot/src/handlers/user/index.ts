@@ -5,7 +5,7 @@ import type {
   SuggestedMediaFile,
   SmokeWithMap,
   SuggestedSmokeInput,
-} from '../../utils/types';
+} from '@shared/utils/types';
 
 import type {
   MapKey,
@@ -13,7 +13,7 @@ import type {
   DifficultyKey,
   SideKey,
   LineKey,
-} from '../../config/constants';
+} from '@shared/config/constants';
 
 import {
   getSmokesByMap,
@@ -22,7 +22,7 @@ import {
   getAllSmokes,
   addSuggestedSmoke,
   saveSuggestedSmokeImage,
-} from '../../database/database';
+} from '@shared/database';
 
 import {
   getGrenadeTypeEmoji,
@@ -42,7 +42,7 @@ import {
   GRENADE_TYPES,
   LINE_TYPES,
   DIFFICULTY_LEVELS,
-} from '../../config/constants';
+} from '@shared/config/constants';
 
 import {
   isMapKey,
@@ -51,7 +51,7 @@ import {
   isSideKey,
   isLineKey,
   resolveChatId,
-} from '../../utils/guards';
+} from '@shared/utils/guards';
 
 const resolveUserId = (context: BotMessage | BotCallbackQuery): number | undefined => context.from?.id;
 

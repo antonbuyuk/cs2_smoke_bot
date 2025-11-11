@@ -11,7 +11,7 @@ import {
   approveSuggestedSmoke,
   rejectSuggestedSmoke,
   getSuggestedSmokeById,
-} from '../../database/database';
+} from '@shared/database';
 
 import {
   getGrenadeTypeEmoji,
@@ -31,7 +31,7 @@ import {
   getDifficultyName,
   getSideName,
   DIFFICULTY_LEVELS,
-} from '../../config/constants';
+} from '@shared/config/constants';
 
 import { debounce } from 'lodash';
 
@@ -41,7 +41,7 @@ import type {
   MediaGroupState,
   SuggestedMediaFile,
   NewSmokeInput,
-} from '../../utils/types';
+} from '@shared/utils/types';
 
 import {
   isMapKey,
@@ -50,7 +50,7 @@ import {
   isGrenadeTypeKey,
   isDifficultyKey,
   resolveChatId,
-} from '../../utils/guards';
+} from '@shared/utils/guards';
 
 let lastMessageId: number[] = [];
 

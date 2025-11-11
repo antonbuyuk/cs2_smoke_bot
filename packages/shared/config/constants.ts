@@ -1,4 +1,4 @@
-import type { KeyboardOption } from '../utils/types';
+import type { KeyboardOption } from '@shared/utils/types';
 
 type KeyboardDictionary = Record<string, KeyboardOption>;
 
