@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
       data: smokes,
     };
   } catch (error) {
+    console.error('Failed to fetch smokes', error);
     throw createError({
       statusCode: 500,
       statusMessage: 'Failed to load smokes',

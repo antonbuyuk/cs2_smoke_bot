@@ -1,4 +1,4 @@
-import type { TelegramBot, BotMessage, BotCallbackQuery } from '../../utils/bot';
+import type { TelegramBot, BotMessage, BotCallbackQuery } from '@shared/utils/bot';
 import {
   addSmoke,
   saveSmokeImage,

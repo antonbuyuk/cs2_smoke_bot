@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
-import { bot } from './utils/bot';
-import type { BotMessage, BotCallbackQuery } from './utils/bot';
+import { bot } from '@shared/utils/bot';
+import type { BotMessage, BotCallbackQuery } from '@shared/utils/bot';
 
 import { initDatabase } from '@shared/database';
 import {
@@ -33,14 +33,14 @@ import {
   handleSuggestionSelection
 } from './handlers/admin';
 
-type MediaGroupPayload = BotMessage | BotMessage[];
+const MEDIA_GROUP_SETTLE_MS = 500;
 
-const toMessageArray = (payload: MediaGroupPayload): BotMessage[] => Array.isArray(payload) ? payload : [payload];
+interface MediaGroupBuffer {
+  messages: BotMessage[];
+  timeout?: ReturnType<typeof setTimeout>;
+}
 
-const resolveChatId = (payload: MediaGroupPayload): number | undefined => {
-  const [firstMessage] = toMessageArray(payload);
-  return firstMessage?.chat?.id;
-};
+const mediaGroupBuffers = new Map<string, MediaGroupBuffer>();
 
 const getAdminIds = (): number[] => {
   const adminIdsStr = process.env.ADMIN_IDS;
@@ -51,8 +51,8 @@ const getAdminIds = (): number[] => {
 
   return adminIdsStr
     .split(',')
-    .map(id => parseInt(id.trim(), 10))
-    .filter(id => !Number.isNaN(id));
+    .map((id) => Number.parseInt(id.trim(), 10))
+    .filter((id) => !Number.isNaN(id));
 };
 
 const isAdmin = (userId: number | undefined): userId is number => {
@@ -63,11 +63,89 @@ const isAdmin = (userId: number | undefined): userId is number => {
   return getAdminIds().includes(userId);
 };
 
-setBot(bot);
-setAdminBot(bot);
+const dispatchMediaGroup = async (messages: BotMessage[]) => {
+  if (messages.length === 0) {
+    return;
+  }
 
-bot.on('photo', async (msg: BotMessage) => {
+  const chatId = messages[0]?.chat?.id;
+
+  if (chatId === undefined) {
+    return;
+  }
+
+  try {
+    if (suggestStates.has(chatId)) {
+      await handleSuggestMediaGroup(messages);
+    } else {
+      await handleMediaGroup(messages);
+    }
+  } catch (error) {
+    console.error('Error while processing media group:', error);
+  }
+};
+
+const scheduleMediaGroupFlush = (mediaGroupId: string) => {
+  const buffer = mediaGroupBuffers.get(mediaGroupId);
+
+  if (!buffer) {
+    return;
+  }
+
+  buffer.timeout = setTimeout(() => {
+    mediaGroupBuffers.delete(mediaGroupId);
+    void dispatchMediaGroup(buffer.messages);
+  }, MEDIA_GROUP_SETTLE_MS);
+};
+
+const enqueueMediaGroupMessage = (message: BotMessage) => {
+  const mediaGroupId = message.media_group_id;
+
+  if (!mediaGroupId) {
+    return false;
+  }
+
+  const buffer = mediaGroupBuffers.get(mediaGroupId);
+
+  if (buffer) {
+    buffer.messages.push(message);
+
+    if (buffer.timeout) {
+      clearTimeout(buffer.timeout);
+    }
+
+    scheduleMediaGroupFlush(mediaGroupId);
+  } else {
+    mediaGroupBuffers.set(mediaGroupId, { messages: [message] });
+    scheduleMediaGroupFlush(mediaGroupId);
+  }
+
+  return true;
+};
+
+setBot(bot.api);
+setAdminBot(bot.api);
+
+bot.catch((err) => {
+  console.error('Bot error:', err.error);
+});
+
+bot.on('message:photo', async (ctx) => {
+  const msg = ctx.message;
+
+  if (!msg) {
+    return;
+  }
+
+  if (msg.media_group_id) {
+    enqueueMediaGroupMessage(msg);
+  }
+
   if (suggestStates.has(msg.chat.id)) {
+    if (msg.media_group_id) {
+      return;
+    }
+
     await handleSuggestPhoto(msg);
     return;
   }
@@ -75,8 +153,22 @@ bot.on('photo', async (msg: BotMessage) => {
   await handlePhoto(msg);
 });
 
-bot.on('video', async (msg: BotMessage) => {
+bot.on('message:video', async (ctx) => {
+  const msg = ctx.message;
+
+  if (!msg) {
+    return;
+  }
+
+  if (msg.media_group_id) {
+    enqueueMediaGroupMessage(msg);
+  }
+
   if (suggestStates.has(msg.chat.id)) {
+    if (msg.media_group_id) {
+      return;
+    }
+
     await handleSuggestVideo(msg);
     return;
   }
@@ -84,80 +176,95 @@ bot.on('video', async (msg: BotMessage) => {
   await handleVideo(msg);
 });
 
-bot.on('media_group', async (payload: MediaGroupPayload) => {
-  const chatId = resolveChatId(payload);
-
-  if (chatId === undefined) {
+bot.command('start', async (ctx) => {
+  if (!ctx.message) {
     return;
   }
 
-  const messages = toMessageArray(payload);
-
-  if (suggestStates.has(chatId)) {
-    await handleSuggestMediaGroup(messages);
-    return;
-  }
-
-  await handleMediaGroup(messages);
+  await handleStart(ctx.message);
 });
 
-bot.onText(/\/start/, handleStart);
-bot.onText(/\/maps/, handleMaps);
-bot.onText(/\/help/, handleHelp);
-
-bot.onText(/\/addsmoke/, (msg: BotMessage) => {
-  if (isAdmin(msg.from?.id)) {
-    handleAddSmoke(msg);
+bot.command('maps', async (ctx) => {
+  if (!ctx.message) {
     return;
   }
 
-  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+  await handleMaps(ctx.message);
 });
 
-bot.onText(/\/deletesmoke/, (msg: BotMessage) => {
-  if (isAdmin(msg.from?.id)) {
-    handleDeleteSmoke(msg);
-    return;
-  }
-
-  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
-});
-
-bot.onText(/\/reset/, (msg: BotMessage) => {
-  if (isAdmin(msg.from?.id)) {
-    handleReset(msg);
-    return;
-  }
-
-  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
-});
-
-bot.onText(/\/viewsuggestions/, (msg: BotMessage) => {
-  if (isAdmin(msg.from?.id)) {
-    handleViewSuggestions(msg);
-    return;
-  }
-
-  bot.sendMessage(msg.chat.id, '❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
-});
-
-bot.onText(/^\/([a-zA-Z]+)$/, (msg: BotMessage, match: RegExpExecArray | null) => {
-  if (!match) {
-    return;
-  }
-
-  const command = match[1].toLowerCase();
-  const userCommands = ['start', 'help'];
-  const adminCommands = ['addsmoke', 'deletesmoke', 'reset'];
-
-  const availableCommands = isAdmin(msg.from?.id) ? [...userCommands, ...adminCommands] : userCommands;
-
-  if (availableCommands.includes(command)) {
-    return;
+bot.command('help', async (ctx) => {
+  if (ctx.message) {
+    await handleHelp(ctx.message);
   }
 });
 
-bot.on('message', (msg: BotMessage) => {
+bot.command('addsmoke', async (ctx) => {
+  const message = ctx.message;
+
+  if (!message) {
+    return;
+  }
+
+  if (isAdmin(ctx.from?.id)) {
+    await handleAddSmoke(message);
+    return;
+  }
+
+  await ctx.reply('❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+});
+
+bot.command('deletesmoke', async (ctx) => {
+  const message = ctx.message;
+
+  if (!message) {
+    return;
+  }
+
+  if (isAdmin(ctx.from?.id)) {
+    await handleDeleteSmoke(message);
+    return;
+  }
+
+  await ctx.reply('❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+});
+
+bot.command('reset', async (ctx) => {
+  const message = ctx.message;
+
+  if (!message) {
+    return;
+  }
+
+  if (isAdmin(ctx.from?.id)) {
+    await handleReset(message);
+    return;
+  }
+
+  await ctx.reply('❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+});
+
+bot.command('viewsuggestions', async (ctx) => {
+  const message = ctx.message;
+
+  if (!message) {
+    return;
+  }
+
+  if (isAdmin(ctx.from?.id)) {
+    await handleViewSuggestions(message);
+    return;
+  }
+
+  await ctx.reply('❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
+});
+
+bot.on('message', async (ctx) => {
+  const msg = ctx.message;
+
+  if (!msg) {
+    return;
+  }
+
   if (msg.text?.startsWith('/')) {
     return;
   }
@@ -169,26 +276,27 @@ bot.on('message', (msg: BotMessage) => {
   const userId = msg.from?.id;
 
   if (isAdmin(userId)) {
-    handleAdminMessage(msg);
+    await handleAdminMessage(msg);
 
     if (msg.text && !Number.isNaN(Number.parseInt(msg.text, 10))) {
-      handleSuggestionSelection(msg);
+      await handleSuggestionSelection(msg);
     }
 
     return;
   }
 
   if (suggestStates.has(msg.chat.id)) {
-    handleSuggestMessage(msg);
+    await handleSuggestMessage(msg);
     return;
   }
 
   if (typeof userId === 'number' && filterStates.has(userId)) {
-    handleSmokeSelection(msg);
+    await handleSmokeSelection(msg);
   }
 });
 
-bot.on('callback_query', async (callbackQuery: BotCallbackQuery) => {
+bot.on('callback_query:data', async (ctx) => {
+  const callbackQuery = ctx.callbackQuery as BotCallbackQuery;
   const { data, message } = callbackQuery;
 
   if (!data || !message) {
@@ -215,24 +323,18 @@ bot.on('callback_query', async (callbackQuery: BotCallbackQuery) => {
       data.startsWith('reject_suggestion_') ||
       data === 'back_to_suggestions'
     ) {
-      console.log('Routing to admin callback handler');
       await handleAdminCallbackQuery(callbackQuery);
-    } else {
-      console.log('No matching callback handler found for:', data);
     }
   } catch (error) {
     console.error('Error handling callback query:', error);
-    bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error occurred' });
+    await ctx.answerCallbackQuery({ text: '❌ Error occurred' });
   }
-});
-
-bot.on('polling_error', (error: Error) => {
-  console.error('Polling error:', error);
 });
 
 const initBot = async () => {
   try {
     await initDatabase();
+    await bot.start({ drop_pending_updates: true });
     console.log('CS2 Smoke Bot запущен!');
     console.log('===================== <START> =====================');
   } catch (error) {
@@ -241,4 +343,4 @@ const initBot = async () => {
   }
 };
 
-initBot();
+void initBot();

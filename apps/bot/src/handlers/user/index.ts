@@ -1,4 +1,4 @@
-import type { TelegramBot, BotMessage, BotCallbackQuery } from '../../utils/bot';
+import type { TelegramBot, BotMessage, BotCallbackQuery } from '@shared/utils/bot';
 import type {
   FilterState,
   SuggestState,
@@ -984,6 +984,10 @@ export const handleSuggestPhoto = async (msg: BotMessage) => {
     return; // Игнорируем фото, если не в процессе предложения гранаты
   }
 
+  if (msg.media_group_id) {
+    return; // Медиагруппы обрабатываются отдельно
+  }
+
   const photo = msg.photo?.[msg.photo.length - 1]; // Получаем последнюю фотографию
   const fileId = photo?.file_id ?? '';
 
@@ -1001,6 +1005,10 @@ export const handleSuggestVideo = async (msg: BotMessage) => {
 
   if (!state || state.step !== 'upload_media') {
     return; // Игнорируем видео, если не в процессе предложения гранаты
+  }
+
+  if (msg.media_group_id) {
+    return; // Медиагруппы обрабатываются отдельно
   }
 
   const fileId = msg.video?.file_id ?? '';

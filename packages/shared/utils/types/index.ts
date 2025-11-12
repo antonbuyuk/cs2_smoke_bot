@@ -118,7 +118,12 @@ export interface NewSmokeInput {
   imageUrl?: string | null;
   difficulty: DifficultyKey;
   side: SideKey | 'both';
-  line?: LineKey | 'mid' | 'plant_a' | 'plant_b' | 'all' | null;
+  line?: LineKey
+    | 'mid'
+    | 'plant_a'
+    | 'plant_b'
+    | 'all'
+    | null;
   grenadeType: GrenadeTypeKey;
 }
 

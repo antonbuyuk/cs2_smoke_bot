@@ -1,4 +1,7 @@
 import sqlite3 from 'sqlite3';
+import { promises as fs } from 'node:fs';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type {
   NewSmokeInput,
   MediaType,
@@ -14,109 +17,126 @@ import type {
 
 let db: sqlite3.Database;
 
-interface MapIdRow {
-  id: number;
-}
+const migrationsDirectory = fileURLToPath(new URL('./migrations', import.meta.url));
 
-export const initDatabase = () => {
-  return new Promise((resolve, reject) => {
-    const dbPath = process.env.DB_PATH || './data/smokes.db';
+const openDatabase = (dbPath: string): Promise<sqlite3.Database> => new Promise((resolve, reject) => {
+  const instance = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+      reject(err);
+      return;
+    }
 
-    db = new sqlite3.Database(dbPath, (err) => {
+    resolve(instance);
+  });
+});
+
+const ensureMigrationsTable = (): Promise<void> => new Promise((resolve, reject) => {
+  db.run(
+    `CREATE TABLE IF NOT EXISTS migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      run_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
       if (err) {
         reject(err);
         return;
       }
 
-      // Создание таблиц
-      db.serialize(() => {
-        // Таблица карт
-        db.run(`CREATE TABLE IF NOT EXISTS maps (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT UNIQUE NOT NULL,
-          display_name TEXT NOT NULL
-        )`, (err) => {
-          if (err) {
-            reject(err);
+      resolve();
+    }
+  );
+});
+
+const getAppliedMigrations = async (): Promise<Set<string>> => new Promise((resolve, reject) => {
+  db.all<{ name: string }>('SELECT name FROM migrations ORDER BY id', (err, rows) => {
+    if (err) {
+      reject(err);
+      return;
+    }
+
+    resolve(new Set(rows?.map((row) => row.name) ?? []));
+  });
+});
+
+const applyMigration = (name: string, sql: string): Promise<void> => new Promise((resolve, reject) => {
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION', (beginError) => {
+      if (beginError) {
+        reject(beginError);
+        return;
+      }
+
+      db.exec(sql, (execError) => {
+        if (execError) {
+          db.run('ROLLBACK', () => {
+            reject(execError);
+          });
+          return;
+        }
+
+        db.run('INSERT INTO migrations (name) VALUES (?)', [name], (insertError) => {
+          if (insertError) {
+            db.run('ROLLBACK', () => {
+              reject(insertError);
+            });
             return;
           }
 
-                  // Таблица гранат
-        db.run(`CREATE TABLE IF NOT EXISTS smokes (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          map_id INTEGER,
-          name TEXT NOT NULL,
-          lineup_instructions TEXT NOT NULL,
-          image_url TEXT,
-          difficulty TEXT DEFAULT 'medium',
-          side TEXT DEFAULT 'both',
-          line TEXT,
-          grenade_type TEXT DEFAULT 'smoke',
-          FOREIGN KEY (map_id) REFERENCES maps (id)
-        )`, (err) => {
-            if (err) {
-              reject(err);
+          db.run('COMMIT', (commitError) => {
+            if (commitError) {
+              reject(commitError);
               return;
             }
 
-                        // Таблица медиафайлов
-            db.run(`CREATE TABLE IF NOT EXISTS smoke_media (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              smoke_id INTEGER,
-              file_id TEXT NOT NULL,
-              media_type TEXT NOT NULL,
-              caption TEXT,
-              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-              FOREIGN KEY (smoke_id) REFERENCES smokes (id)
-            )`, (err) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-
-              // Таблица предложенных гранат
-              db.run(`CREATE TABLE IF NOT EXISTS suggested_smokes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                map_id INTEGER,
-                name TEXT NOT NULL,
-                lineup_instructions TEXT NOT NULL,
-                image_url TEXT,
-                difficulty TEXT DEFAULT 'medium',
-                side TEXT DEFAULT 'both',
-                line TEXT,
-                grenade_type TEXT DEFAULT 'smoke',
-                user_id INTEGER,
-                username TEXT,
-                suggested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (map_id) REFERENCES maps (id)
-              )`, (err) => {
-                if (err) {
-                  reject(err);
-                  return;
-                }
-
-                // Таблица медиафайлов для предложенных гранат
-                db.run(`CREATE TABLE IF NOT EXISTS suggested_smoke_media (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  suggested_smoke_id INTEGER,
-                  file_id TEXT NOT NULL,
-                  media_type TEXT NOT NULL,
-                  caption TEXT,
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (suggested_smoke_id) REFERENCES suggested_smokes (id)
-                )`, (err) => {
-                  if (err) {
-                    reject(err);
-                    return;
-                  }
-                });
-              });
-            });
+            resolve();
           });
         });
       });
     });
   });
+});
+
+const runMigrations = async () => {
+  await ensureMigrationsTable();
+
+  let files: string[];
+  try {
+    files = await fs.readdir(migrationsDirectory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return;
+    }
+
+    throw error;
+  }
+
+  const applied = await getAppliedMigrations();
+  const sqlFiles = files.filter((file) => file.endsWith('.sql')).sort();
+
+  for (const fileName of sqlFiles) {
+    if (applied.has(fileName)) {
+      continue;
+    }
+
+    const filePath = resolvePath(migrationsDirectory, fileName);
+    const sql = await fs.readFile(filePath, 'utf-8');
+    await applyMigration(fileName, sql);
+  }
+};
+
+interface MapIdRow {
+  id: number;
+}
+
+export const initDatabase = async (): Promise<void> => {
+  const defaultPath = resolvePath(process.cwd(), 'data/smokes.db');
+  const configuredPath = process.env.DB_PATH ? resolvePath(process.cwd(), process.env.DB_PATH) : defaultPath;
+
+  await fs.mkdir(dirname(configuredPath), { recursive: true });
+
+  db = await openDatabase(configuredPath);
+  await runMigrations();
 };
 
 export const getMaps = (): Promise<MapRecord[]> => new Promise((resolve, reject) => {

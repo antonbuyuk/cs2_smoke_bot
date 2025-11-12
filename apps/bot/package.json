@@ -16,13 +16,11 @@
   "dependencies": {
     "dotenv": "^16.3.1",
     "lodash": "^4.17.21",
-    "node-telegram-bot-api": "^0.63.0",
     "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.20",
     "@types/node": "^20.11.17",
-    "@types/node-telegram-bot-api": "^0.64.12",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.46.4",
     "eslint": "^9.39.1",
