@@ -8,6 +8,10 @@ import type {
   SmokeWithMap,
   MapRecord,
   RealMapKey,
+  SideRecord,
+  DifficultyRecord,
+  LineRecord,
+  GrenadeTypeRecord,
 } from '../utils/types';
 import type {
   DifficultyKey,
@@ -173,8 +177,7 @@ const createDatabaseStructure = async () => {
       INSERT INTO lines (name, display_name) VALUES
         ('plant_a', 'Plant A'),
         ('plant_b', 'Plant B'),
-        ('mid', 'Mid'),
-        ('all', 'All lines')
+        ('mid', 'Mid')
       ON CONFLICT (name) DO NOTHING
     `);
 
@@ -183,8 +186,7 @@ const createDatabaseStructure = async () => {
         ('smoke', 'Smoke'),
         ('flash', 'Flash'),
         ('molotov', 'Molotov'),
-        ('he', 'HE Grenade'),
-        ('all', 'All types')
+        ('he', 'HE Grenade')
       ON CONFLICT (name) DO NOTHING
     `);
 
@@ -343,6 +345,120 @@ export const initDatabase = async (): Promise<void> => {
 export const getMaps = async (): Promise<MapRecord[]> => {
   const { rows } = await getPool().query<MapRecord>('SELECT id, name, display_name FROM maps ORDER BY display_name');
   return rows;
+};
+
+export const addMap = async (name: string, displayName: string): Promise<number> => {
+  const { rows } = await getPool().query<{ id: number }>(
+    'INSERT INTO maps (name, display_name) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING RETURNING id',
+    [name, displayName]
+  );
+
+  if (rows.length === 0) {
+    throw new Error(`Карта с именем "${name}" уже существует`);
+  }
+
+  return rows[0]?.id ?? 0;
+};
+
+// Sides functions
+export const getSides = async (): Promise<SideRecord[]> => {
+  const { rows } = await getPool().query<SideRecord>('SELECT id, name, display_name FROM sides ORDER BY display_name');
+  return rows;
+};
+
+export const addSide = async (name: string, displayName: string): Promise<number> => {
+  const { rows } = await getPool().query<{ id: number }>(
+    'INSERT INTO sides (name, display_name) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING RETURNING id',
+    [name, displayName]
+  );
+
+  if (rows.length === 0) {
+    throw new Error(`Сторона с именем "${name}" уже существует`);
+  }
+
+  return rows[0]?.id ?? 0;
+};
+
+// Difficulties functions
+export const getDifficulties = async (): Promise<DifficultyRecord[]> => {
+  const { rows } = await getPool().query<DifficultyRecord>('SELECT id, name, display_name FROM difficulties ORDER BY display_name');
+  return rows;
+};
+
+export const addDifficulty = async (name: string, displayName: string): Promise<number> => {
+  const { rows } = await getPool().query<{ id: number }>(
+    'INSERT INTO difficulties (name, display_name) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING RETURNING id',
+    [name, displayName]
+  );
+
+  if (rows.length === 0) {
+    throw new Error(`Сложность с именем "${name}" уже существует`);
+  }
+
+  return rows[0]?.id ?? 0;
+};
+
+// Lines functions
+export const getLines = async (): Promise<LineRecord[]> => {
+  const { rows } = await getPool().query<LineRecord>('SELECT id, name, display_name FROM lines ORDER BY display_name');
+  return rows;
+};
+
+export const addLine = async (name: string, displayName: string): Promise<number> => {
+  const { rows } = await getPool().query<{ id: number }>(
+    'INSERT INTO lines (name, display_name) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING RETURNING id',
+    [name, displayName]
+  );
+
+  if (rows.length === 0) {
+    throw new Error(`Линия с именем "${name}" уже существует`);
+  }
+
+  return rows[0]?.id ?? 0;
+};
+
+// Grenade types functions
+export const getGrenadeTypes = async (): Promise<GrenadeTypeRecord[]> => {
+  const { rows } = await getPool().query<GrenadeTypeRecord>('SELECT id, name, display_name FROM grenade_types ORDER BY display_name');
+  return rows;
+};
+
+export const addGrenadeType = async (name: string, displayName: string): Promise<number> => {
+  const { rows } = await getPool().query<{ id: number }>(
+    'INSERT INTO grenade_types (name, display_name) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING RETURNING id',
+    [name, displayName]
+  );
+
+  if (rows.length === 0) {
+    throw new Error(`Тип гранаты с именем "${name}" уже существует`);
+  }
+
+  return rows[0]?.id ?? 0;
+};
+
+export const deleteMap = async (id: number): Promise<number> => {
+  const result = await getPool().query('DELETE FROM maps WHERE id = $1', [id]);
+  return result.rowCount ?? 0;
+};
+
+export const deleteSide = async (id: number): Promise<number> => {
+  const result = await getPool().query('DELETE FROM sides WHERE id = $1', [id]);
+  return result.rowCount ?? 0;
+};
+
+export const deleteDifficulty = async (id: number): Promise<number> => {
+  const result = await getPool().query('DELETE FROM difficulties WHERE id = $1', [id]);
+  return result.rowCount ?? 0;
+};
+
+export const deleteLine = async (id: number): Promise<number> => {
+  const result = await getPool().query('DELETE FROM lines WHERE id = $1', [id]);
+  return result.rowCount ?? 0;
+};
+
+export const deleteGrenadeType = async (id: number): Promise<number> => {
+  const result = await getPool().query('DELETE FROM grenade_types WHERE id = $1', [id]);
+  return result.rowCount ?? 0;
 };
 
 export const getSmokesByMap = async (mapName: RealMapKey): Promise<SmokeWithMap[]> => {
