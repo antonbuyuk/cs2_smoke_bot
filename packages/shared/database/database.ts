@@ -1,6 +1,6 @@
 /// <reference types="node" />
 
-import { Pool, PoolClient } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import type {
   NewSmokeInput,
   MediaType,

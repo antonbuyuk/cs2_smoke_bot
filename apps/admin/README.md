@@ -1,6 +1,6 @@
-# Nuxt Minimal Starter
+# CS2 Bot Admin Panel
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Админ-панель для управления CS2 Bot с авторизацией через Telegram.
 
 ## Setup
 
@@ -20,6 +20,53 @@ yarn install
 bun install
 ```
 
+## Configuration
+
+Создайте файл `.env` на основе `env.example`:
+
+```env
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/cs2_bot
+BOT_TOKEN=your_bot_token_here
+BOT_USERNAME=your_bot_username
+```
+
+## Telegram Bot Setup
+
+Для работы Telegram Login Widget необходимо настроить домен в @BotFather:
+
+1. Откройте @BotFather в Telegram
+2. Выберите вашего бота
+3. Перейдите в "Bot Settings" → "Domain"
+4. Укажите домен вашего сайта
+
+**Важно:** Telegram не принимает `localhost` как валидный домен. Для локальной разработки используйте:
+
+### Вариант 1: Ngrok (рекомендуется для разработки)
+
+1. Установите [ngrok](https://ngrok.com/)
+2. Зарегистрируйтесь на [ngrok.com](https://dashboard.ngrok.com/signup) (бесплатно)
+3. Получите ваш authtoken на странице [Get Started](https://dashboard.ngrok.com/get-started/your-authtoken)
+4. Установите authtoken в ngrok:
+   ```bash
+   ngrok config add-authtoken YOUR_AUTHTOKEN
+   ```
+5. Запустите ваш dev сервер в одном терминале:
+   ```bash
+   cd apps/admin
+   npm run dev
+   ```
+6. В другом терминале запустите ngrok:
+   ```bash
+   ngrok http 3000
+   ```
+7. Скопируйте HTTPS URL из вывода ngrok (например, `https://abc123.ngrok.io`)
+8. Укажите этот домен в @BotFather (только домен, без `https://`, например: `abc123.ngrok.io`)
+9. Откройте приложение через ngrok URL в браузере (не через localhost)
+
+### Вариант 2: Реальный домен
+
+Если у вас есть реальный домен с HTTPS, используйте его.
+
 ## Development Server
 
 Start the development server on `http://localhost:3000`:
@@ -37,6 +84,8 @@ yarn dev
 # bun
 bun run dev
 ```
+
+**Примечание:** Если используете ngrok, открывайте приложение через ngrok URL, а не через localhost.
 
 ## Production
 

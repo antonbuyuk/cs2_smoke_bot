@@ -16,6 +16,14 @@ type ReferenceTableConfig = {
 export const useReferenceTable = async <T extends ReferenceRecord>(config: ReferenceTableConfig) => {
   const { data, pending, error, refresh } = await useFetch(`/api/${config.apiPath}`, {
     transform: (response: { data: T[] }) => response.data,
+    onResponseError({ response }) {
+      if (response.status === 401) {
+        const { logout } = useAuth();
+        logout().then(() => {
+          navigateTo('/login');
+        });
+      }
+    },
   });
 
   const items = computed(() => data.value ?? []);
