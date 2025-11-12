@@ -1,1 +1,0 @@
-CREATE DATABASE cs2_bot;

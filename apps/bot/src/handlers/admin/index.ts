@@ -34,7 +34,7 @@ import type {
   AddSmokeState,
   DeleteSmokeState,
   MediaGroupState,
-  SuggestedMediaFile,
+  MediaFile,
   NewSmokeInput,
 } from '@shared/utils/types';
 
@@ -345,7 +345,7 @@ export const handleMediaGroup = async (messages: BotMessage[]) => {
 };
 
 // Обработчик файла из медиагруппы
-export const handleMediaGroupFile = async (chatId: number, mediaGroupId: string, fileData: SuggestedMediaFile) => {
+export const handleMediaGroupFile = async (chatId: number, mediaGroupId: string, fileData: MediaFile) => {
   const groupData = mediaGroupStorage.get(mediaGroupId);
 
   if (!groupData) {
@@ -548,7 +548,7 @@ Use /deletesmoke to delete other grenades.        `;
 };
 
 // Сохранение смока в базу данных
-export const saveSmokeToDatabase = async (state: AddSmokeState, mediaFiles: SuggestedMediaFile[]) => {
+export const saveSmokeToDatabase = async (state: AddSmokeState, mediaFiles: MediaFile[]) => {
   const chatId = state.chatId;
 
   if (!state.selectedMap || !state.side || !state.line || !state.grenadeType || !state.difficulty || !state.name || !state.lineup_instructions) {

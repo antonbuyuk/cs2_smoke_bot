@@ -7,21 +7,6 @@ import type {
   AdminActionKey
 } from '../../config/constants';
 
-export interface SuggestedSmoke {
-  id: number;
-  map_id: number;
-  name: string;
-  lineup_instructions: string;
-  difficulty: string;
-  side: string;
-  line: string;
-  grenade_type: string;
-  user_id: number;
-  username: string;
-  suggested_at: string;
-  image_url: string;
-}
-
 export interface KeyboardOption {
   emoji: string;
   name: string;
@@ -56,20 +41,6 @@ export interface SmokeMediaRecord {
   created_at: string;
 }
 
-export interface SuggestedSmokeMediaRecord {
-  id: number;
-  suggested_smoke_id: number;
-  file_id: string;
-  media_type: MediaType;
-  caption: string | null;
-  created_at: string;
-}
-
-export type SuggestedSmokeWithMap = SuggestedSmoke & {
-  map_name: MapKey;
-  map_display_name: string;
-};
-
 export type FilterValue<T extends string> = T;
 
 export interface FilterParams {
@@ -86,27 +57,7 @@ export interface FilterState {
   filterParams: FilterParams;
 }
 
-export type SuggestionStep =
-  | 'select_map'
-  | 'select_side'
-  | 'select_line'
-  | 'select_grenade_type'
-  | 'select_difficulty'
-  | 'enter_name'
-  | 'enter_instructions'
-  | 'upload_media';
-
-export interface SuggestState {
-  chatId: number;
-  userId: number;
-  username: string;
-  step: SuggestionStep;
-  filterParams: FilterParams;
-  name?: string;
-  lineup_instructions?: string;
-}
-
-export interface SuggestedMediaFile {
+export interface MediaFile {
   type: MediaType;
   fileId: string;
   caption?: string | null;
@@ -125,16 +76,6 @@ export interface NewSmokeInput {
     | 'all'
     | null;
   grenadeType: GrenadeTypeKey;
-}
-
-export interface SuggestedSmokeInput {
-  name: string;
-  lineup_instructions: string;
-  difficulty: DifficultyKey;
-  side: SideKey | 'both';
-  line?: LineKey | 'mid' | 'plant_a' | 'plant_b' | 'all' | null;
-  grenadeType: GrenadeTypeKey;
-  imageUrl?: string | null;
 }
 
 export type AdminAction = AdminActionKey;
@@ -230,7 +171,7 @@ export interface DeleteSmokeState {
 export interface MediaGroupState {
   chatId: number;
   mediaGroupId: string;
-  files: SuggestedMediaFile[];
+  files: MediaFile[];
   expectedCount: number;
   receivedCount: number;
 }
