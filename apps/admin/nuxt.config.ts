@@ -12,4 +12,7 @@ export default defineNuxtConfig({
   typescript: {
     strict: true,
   },
+  runtimeConfig: {
+    telegramBotToken: process.env.BOT_TOKEN || '',
+  },
 });

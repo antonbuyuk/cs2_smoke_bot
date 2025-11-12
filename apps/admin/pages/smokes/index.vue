@@ -1,3 +1,67 @@
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+
+import {
+  MAP_TYPES,
+  getMapName,
+  getSideName,
+  getGrenadeTypeName,
+  getDifficultyName,
+  getLineName,
+} from '@shared/config/constants';
+import type { SmokeWithMap } from '@shared/utils/types';
+
+const selectedMap = ref<'all' | string>('all');
+
+const mapOptions = computed(() => {
+  return Object.entries(MAP_TYPES)
+    .filter(([key]) => key !== 'all')
+    .map(([value, option]) => ({
+      value,
+      label: option.name,
+    }));
+});
+
+const queryParams = computed(() => {
+  if (selectedMap.value === 'all') {
+    return {};
+  }
+
+  return { map: selectedMap.value };
+});
+
+const { data, pending, error, refresh } = await useFetch('/api/smokes', {
+  query: queryParams,
+  transform: (response: { data: SmokeWithMap[] }) => response.data,
+});
+
+watch(selectedMap, () => {
+  refresh();
+});
+
+const smokes = computed(() => data.value ?? []);
+const errorMessage = computed(() => {
+  if (!error.value) {
+    return '';
+  }
+
+  return 'Не удалось загрузить список смоков. Попробуйте обновить страницу.';
+});
+
+const formatMap = (mapName: string) => getMapName(mapName) ?? mapName;
+const formatSide = (side: string) => getSideName(side) ?? side;
+const formatGrenade = (grenade: string) => getGrenadeTypeName(grenade) ?? grenade;
+const formatDifficulty = (difficulty: string) => getDifficultyName(difficulty) ?? difficulty;
+const formatLine = (line: string | null | undefined) => {
+  if (!line) {
+    return '—';
+  }
+
+  return getLineName(line) ?? line;
+};
+</script>
+
 <template>
   <div class="min-h-screen bg-slate-950 text-slate-50">
     <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
@@ -100,67 +164,3 @@
     </main>
   </div>
 </template>
-
-<script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-
-import {
-  MAP_TYPES,
-  getMapName,
-  getSideName,
-  getGrenadeTypeName,
-  getDifficultyName,
-  getLineName,
-} from '@shared/config/constants';
-import type { SmokeWithMap } from '@shared/utils/types';
-
-const selectedMap = ref<'all' | string>('all');
-
-const mapOptions = computed(() => {
-  return Object.entries(MAP_TYPES)
-    .filter(([key]) => key !== 'all')
-    .map(([value, option]) => ({
-      value,
-      label: option.name,
-    }));
-});
-
-const queryParams = computed(() => {
-  if (selectedMap.value === 'all') {
-    return {};
-  }
-
-  return { map: selectedMap.value };
-});
-
-const { data, pending, error, refresh } = await useFetch('/api/smokes', {
-  query: queryParams,
-  transform: (response: { data: SmokeWithMap[] }) => response.data,
-});
-
-watch(selectedMap, () => {
-  refresh();
-});
-
-const smokes = computed(() => data.value ?? []);
-const errorMessage = computed(() => {
-  if (!error.value) {
-    return '';
-  }
-
-  return 'Не удалось загрузить список смоков. Попробуйте обновить страницу.';
-});
-
-const formatMap = (mapName: string) => getMapName(mapName) ?? mapName;
-const formatSide = (side: string) => getSideName(side) ?? side;
-const formatGrenade = (grenade: string) => getGrenadeTypeName(grenade) ?? grenade;
-const formatDifficulty = (difficulty: string) => getDifficultyName(difficulty) ?? difficulty;
-const formatLine = (line: string | null | undefined) => {
-  if (!line) {
-    return '—';
-  }
-
-  return getLineName(line) ?? line;
-};
-</script>
-

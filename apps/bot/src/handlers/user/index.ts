@@ -55,6 +55,13 @@ import {
 
 const resolveUserId = (context: BotMessage | BotCallbackQuery): number | undefined => context.from?.id;
 
+interface InputMediaPayload {
+  type: 'photo' | 'video';
+  media: string;
+  caption?: string;
+  parse_mode?: 'Markdown';
+}
+
 // Функция для получения списка админов из переменных окружения
 export const getAdminIds = () => {
   const adminIdsStr = process.env.ADMIN_IDS;
@@ -683,11 +690,19 @@ ${smoke.lineup_instructions}
 ${mediaFiles.length > 0 ? `📸 ${mediaFiles.length} media files` : 'No media files'}`;
 
     if (mediaFiles.length > 0) {
-      const mediaGroup = mediaFiles.map((media, index): TelegramBot.InputMedia => ({
-        type: media.media_type,
-        media: media.file_id,
-        ...(index === 0 ? { caption: message, parse_mode: 'Markdown' as const } : {})
-      }));
+      const mediaGroup = mediaFiles.map((media, index): InputMediaPayload => {
+        const base: InputMediaPayload =
+          media.media_type === 'video'
+            ? { type: 'video', media: media.file_id }
+            : { type: 'photo', media: media.file_id };
+
+        if (index === 0) {
+          base.caption = message;
+          base.parse_mode = 'Markdown';
+        }
+
+        return base;
+      });
 
       bot.sendMediaGroup(chatId, mediaGroup);
     } else {
@@ -785,11 +800,19 @@ export const handleSmokeSelection = async (msg: BotMessage) => {
     smokeText += `*Instructions:*\n${escapeMarkdown(smoke.lineup_instructions ?? '')}`;
 
     if (mediaFiles.length > 0) {
-      const mediaGroup = mediaFiles.map((media, index): TelegramBot.InputMedia => ({
-        type: media.media_type,
-        media: media.file_id,
-        ...(index === 0 ? { caption: smokeText, parse_mode: 'Markdown' as const } : {})
-      }));
+      const mediaGroup = mediaFiles.map((media, index): InputMediaPayload => {
+        const base: InputMediaPayload =
+          media.media_type === 'video'
+            ? { type: 'video', media: media.file_id }
+            : { type: 'photo', media: media.file_id };
+
+        if (index === 0) {
+          base.caption = smokeText;
+          base.parse_mode = 'Markdown';
+        }
+
+        return base;
+      });
 
       await bot.sendMediaGroup(chatId, mediaGroup);
     } else {
