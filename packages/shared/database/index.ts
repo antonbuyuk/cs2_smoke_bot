@@ -1,5 +1,5 @@
 // Экспорт функций базы данных
-import { initDatabase, getMaps, getSmokesByMap, addSmoke, saveSmokeImage, getSmokeMedia, deleteSmoke, getSmokeById, clearAllSmokes, getAllSmokes, addSuggestedSmoke, saveSuggestedSmokeImage, getAllSuggestedSmokes, getSuggestedSmokeById, getSuggestedSmokeMedia, approveSuggestedSmoke, rejectSuggestedSmoke } from './database';
+import { initDatabase, getMaps, getSmokesByMap, addSmoke, saveSmokeImage, getSmokeMedia, deleteSmoke, getSmokeById, clearAllSmokes, getAllSmokes } from './database';
 
 export {
   initDatabase,
@@ -12,11 +12,4 @@ export {
   getSmokeById,
   clearAllSmokes,
   getAllSmokes,
-  addSuggestedSmoke,
-  saveSuggestedSmokeImage,
-  getAllSuggestedSmokes,
-  getSuggestedSmokeById,
-  getSuggestedSmokeMedia,
-  approveSuggestedSmoke,
-  rejectSuggestedSmoke
 };

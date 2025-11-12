@@ -11,12 +11,7 @@ import {
   handleMaps,
   handleSmokeSelection,
   handleCallbackQuery,
-  handleSuggestMessage,
-  handleSuggestPhoto,
-  handleSuggestVideo,
-  handleSuggestMediaGroup,
   filterStates,
-  suggestStates
 } from './handlers/user';
 
 import {
@@ -29,8 +24,6 @@ import {
   handlePhoto,
   handleVideo,
   handleMediaGroup,
-  handleViewSuggestions,
-  handleSuggestionSelection
 } from './handlers/admin';
 
 const MEDIA_GROUP_SETTLE_MS = 500;
@@ -75,11 +68,7 @@ const dispatchMediaGroup = async (messages: BotMessage[]) => {
   }
 
   try {
-    if (suggestStates.has(chatId)) {
-      await handleSuggestMediaGroup(messages);
-    } else {
-      await handleMediaGroup(messages);
-    }
+    await handleMediaGroup(messages);
   } catch (error) {
     console.error('Error while processing media group:', error);
   }
@@ -141,15 +130,6 @@ bot.on('message:photo', async (ctx) => {
     enqueueMediaGroupMessage(msg);
   }
 
-  if (suggestStates.has(msg.chat.id)) {
-    if (msg.media_group_id) {
-      return;
-    }
-
-    await handleSuggestPhoto(msg);
-    return;
-  }
-
   await handlePhoto(msg);
 });
 
@@ -162,15 +142,6 @@ bot.on('message:video', async (ctx) => {
 
   if (msg.media_group_id) {
     enqueueMediaGroupMessage(msg);
-  }
-
-  if (suggestStates.has(msg.chat.id)) {
-    if (msg.media_group_id) {
-      return;
-    }
-
-    await handleSuggestVideo(msg);
-    return;
   }
 
   await handleVideo(msg);
@@ -243,20 +214,6 @@ bot.command('reset', async (ctx) => {
   await ctx.reply('❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
 });
 
-bot.command('viewsuggestions', async (ctx) => {
-  const message = ctx.message;
-
-  if (!message) {
-    return;
-  }
-
-  if (isAdmin(ctx.from?.id)) {
-    await handleViewSuggestions(message);
-    return;
-  }
-
-  await ctx.reply('❌ Access denied. Admin privileges required.', { parse_mode: 'Markdown' });
-});
 
 bot.on('message', async (ctx) => {
   const msg = ctx.message;
@@ -277,16 +234,6 @@ bot.on('message', async (ctx) => {
 
   if (isAdmin(userId)) {
     await handleAdminMessage(msg);
-
-    if (msg.text && !Number.isNaN(Number.parseInt(msg.text, 10))) {
-      await handleSuggestionSelection(msg);
-    }
-
-    return;
-  }
-
-  if (suggestStates.has(msg.chat.id)) {
-    await handleSuggestMessage(msg);
     return;
   }
 
@@ -312,16 +259,12 @@ bot.on('callback_query:data', async (ctx) => {
       data.startsWith('line_') ||
       data.startsWith('difficulty_') ||
       data.startsWith('show_all_') ||
-      data.startsWith('side_') ||
-      data.startsWith('suggest_')
+      data.startsWith('side_')
     ) {
       await handleCallbackQuery(callbackQuery);
     } else if (
       data.startsWith('addsmoke_') ||
-      data.startsWith('deletesmoke_') ||
-      data.startsWith('approve_suggestion_') ||
-      data.startsWith('reject_suggestion_') ||
-      data === 'back_to_suggestions'
+      data.startsWith('deletesmoke_')
     ) {
       await handleAdminCallbackQuery(callbackQuery);
     }

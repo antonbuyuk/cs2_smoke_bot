@@ -147,6 +147,59 @@ export interface MapRecord {
   display_name: string;
 }
 
+// Reference table records
+export interface SideRecord {
+  id: number;
+  name: SideKey;
+  display_name: string;
+}
+
+export interface DifficultyRecord {
+  id: number;
+  name: DifficultyKey;
+  display_name: string;
+}
+
+export interface LineRecord {
+  id: number;
+  name: LineKey;
+  display_name: string;
+}
+
+export interface GrenadeTypeRecord {
+  id: number;
+  name: GrenadeTypeKey;
+  display_name: string;
+}
+
+// Updated SmokeRecord with foreign keys (internal DB structure)
+export interface SmokeRecordDB {
+  id: number;
+  name: string;
+  display_name: string | null;
+  map_id: number;
+  difficulty_id: number;
+  side_id: number;
+  line_id: number | null;
+  grenade_type_id: number;
+  lineup_instructions: string;
+  image_url: string | null;
+  created_at: string;
+}
+
+// Public-facing SmokeRecord (with string keys for compatibility)
+export interface SmokeRecord {
+  id: number;
+  map_id: number | null;
+  name: string;
+  lineup_instructions: string;
+  image_url: string | null;
+  difficulty: DifficultyKey;
+  side: SideKey | 'both';
+  line: LineKey | 'mid' | 'plant_a' | 'plant_b' | 'all' | null;
+  grenade_type: GrenadeTypeKey;
+}
+
 export type AddSmokeStep = 'name' | 'instructions' | 'image' | null;
 
 export interface AddSmokeState {

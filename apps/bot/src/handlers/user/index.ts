@@ -1,27 +1,15 @@
 import type { TelegramBot, BotMessage, BotCallbackQuery } from '@shared/utils/bot';
 import type {
   FilterState,
-  SuggestState,
-  SuggestedMediaFile,
   SmokeWithMap,
-  SuggestedSmokeInput,
 } from '@shared/utils/types';
 
-import type {
-  MapKey,
-  GrenadeTypeKey,
-  DifficultyKey,
-  SideKey,
-  LineKey,
-} from '@shared/config/constants';
 
 import {
   getSmokesByMap,
   getSmokeMedia,
   getSmokeById,
   getAllSmokes,
-  addSuggestedSmoke,
-  saveSuggestedSmokeImage,
 } from '@shared/database';
 
 import {
@@ -94,7 +82,6 @@ Choose an action:`;
   const keyboard = {
     inline_keyboard: [
       [{ text: '🗺 Maps', callback_data: 'start_maps' }],
-      [{ text: '💡 Suggest Grenade', callback_data: 'start_suggest' }],
       [{ text: '📚 Help', callback_data: 'start_help' }],
     ]
   };
@@ -152,7 +139,7 @@ Admin commands:
 
 /addsmoke - add new smoke
 /deletesmoke - delete smoke
-/viewsuggestions - view and approve suggested grenades`;
+`;
     }
 
     bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
@@ -164,8 +151,6 @@ Admin commands:
 // Состояния для гранат
 export const filterStates = new Map<number, FilterState>();
 
-// Состояния для предложения гранат
-export const suggestStates = new Map<number, SuggestState>();
 
 // Обработчик команды /maps
 export const handleMaps = async (context: BotMessage | BotCallbackQuery) => {
@@ -201,244 +186,6 @@ ${getDifficultyEmoji('all')} Difficulty: ${getDifficultyName('all')}`;
   } catch (error) {
     const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
     bot.sendMessage(chatId, `❌ Error getting maps: ${fallbackMessage}`);
-  }
-};
-
-// Обработчик предложения гранаты
-export const handleSuggestGrenade = async (callbackQuery: BotCallbackQuery) => {
-  const chatId = resolveChatId(callbackQuery);
-
-  if (chatId === undefined) {
-    return;
-  }
-
-  try {
-    const userId = callbackQuery.from.id;
-    const username = callbackQuery.from.username || callbackQuery.from.first_name || 'Unknown user';
-
-    suggestStates.set(chatId, {
-      chatId,
-      userId,
-      username,
-      step: 'select_map',
-      filterParams: {
-        mapName: 'all',
-        grenadeType: 'all',
-        side: 'all',
-        line: 'all',
-        difficulty: 'all'
-      }
-    });
-
-    const message = `💡 *Suggest a Grenade*
-
-Choose a map for your grenade:`;
-
-    const keyboard = createKeyboard(
-      'suggest_map',
-      Object.fromEntries(Object.entries(MAP_TYPES).filter(([key]) => key !== 'all'))
-    );
-
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
-    bot.sendMessage(chatId, `❌ Error starting suggestion process: ${fallbackMessage}`);
-  }
-};
-
-// Обработчик выбора карты для предложения
-export const handleSuggestMapCallback = async (callbackQuery: BotCallbackQuery, mapName: string) => {
-  const chatId = resolveChatId(callbackQuery);
-
-  if (chatId === undefined) {
-    return;
-  }
-
-  try {
-    const state = suggestStates.get(chatId);
-
-    if (!state) {
-      bot.sendMessage(chatId, '❌ Suggestion state not found', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    if (!isMapKey(mapName) || mapName === 'all') {
-      bot.sendMessage(chatId, '❌ Invalid map selection', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    state.filterParams.mapName = mapName;
-    state.step = 'select_side';
-
-    const message = `🔴🔵 Choose side for your grenade:
-
-${getMapEmoji(mapName)} Map: ${getMapName(mapName)}`;
-
-    const keyboard = createKeyboard('suggest_side', SIDE_TYPES);
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('handleSuggestMapCallback error:', error);
-    bot.sendMessage(chatId, `❌ Error selecting map: ${fallbackMessage}`);
-  }
-};
-
-// Обработчик выбора стороны для предложения
-export const handleSuggestSideCallback = async (callbackQuery: BotCallbackQuery, side: string) => {
-  const chatId = resolveChatId(callbackQuery);
-
-  if (chatId === undefined) {
-    return;
-  }
-
-  try {
-    const state = suggestStates.get(chatId);
-
-    if (!state) {
-      bot.sendMessage(chatId, '❌ Suggestion state not found', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    if (!isSideKey(side) || side === 'all') {
-      bot.sendMessage(chatId, '❌ Invalid side selection', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    state.filterParams.side = side;
-    state.step = 'select_line';
-
-    const message = `📍 Choose line for your grenade:
-
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(side)} Side: ${getSideName(side)}`;
-
-    const keyboard = createKeyboard('suggest_line', LINE_TYPES);
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('handleSuggestSideCallback error:', error);
-    bot.sendMessage(chatId, `❌ Error selecting side: ${fallbackMessage}`);
-  }
-};
-
-// Обработчик выбора линии для предложения
-export const handleSuggestLineCallback = async (callbackQuery: BotCallbackQuery, line: string) => {
-  const chatId = resolveChatId(callbackQuery);
-
-  if (chatId === undefined) {
-    return;
-  }
-
-  try {
-    const state = suggestStates.get(chatId);
-
-    if (!state) {
-      bot.sendMessage(chatId, '❌ Suggestion state not found', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    if (!isLineKey(line) || line === 'all') {
-      bot.sendMessage(chatId, '❌ Invalid line selection', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    state.filterParams.line = line;
-    state.step = 'select_grenade_type';
-
-    const message = `💨 Choose grenade type:
-
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getLineEmoji(line)} Line: ${getLineName(line)}`;
-
-    const keyboard = createKeyboard('suggest_grenade', GRENADE_TYPES);
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('handleSuggestLineCallback error:', error);
-    bot.sendMessage(chatId, `❌ Error selecting line: ${fallbackMessage}`);
-  }
-};
-
-// Обработчик выбора типа гранаты для предложения
-export const handleSuggestGrenadeTypeCallback = async (callbackQuery: BotCallbackQuery, grenadeType: string) => {
-  const chatId = resolveChatId(callbackQuery);
-
-  if (chatId === undefined) {
-    return;
-  }
-
-  try {
-    const state = suggestStates.get(chatId);
-
-    if (!state) {
-      bot.sendMessage(chatId, '❌ Suggestion state not found', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    if (!isGrenadeTypeKey(grenadeType) || grenadeType === 'all') {
-      bot.sendMessage(chatId, '❌ Invalid grenade type selection', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    state.filterParams.grenadeType = grenadeType;
-    state.step = 'select_difficulty';
-
-    const message = `🎯 Choose difficulty:
-
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getGrenadeTypeEmoji(grenadeType)} Grenade type: ${getGrenadeTypeName(grenadeType)}`;
-
-    const keyboard = createKeyboard('suggest_difficulty', DIFFICULTY_LEVELS);
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('handleSuggestGrenadeTypeCallback error:', error);
-    bot.sendMessage(chatId, `❌ Error selecting grenade type: ${fallbackMessage}`);
-  }
-};
-
-// Обработчик выбора сложности для предложения
-export const handleSuggestDifficultyCallback = async (callbackQuery: BotCallbackQuery, difficulty: string) => {
-  const chatId = resolveChatId(callbackQuery);
-
-  if (chatId === undefined) {
-    return;
-  }
-
-  try {
-    const state = suggestStates.get(chatId);
-
-    if (!state) {
-      bot.sendMessage(chatId, '❌ Suggestion state not found', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    if (!isDifficultyKey(difficulty) || difficulty === 'all') {
-      bot.sendMessage(chatId, '❌ Invalid difficulty selection', { parse_mode: 'Markdown' });
-      return;
-    }
-
-    state.filterParams.difficulty = difficulty;
-    state.step = 'enter_name';
-
-    const message = `📝 *Grenade Details*
-
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-${getDifficultyEmoji(difficulty)} Difficulty: ${getDifficultyName(difficulty)}
-
-Enter the name of your grenade:`;
-
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-  } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('handleSuggestDifficultyCallback error:', error);
-    bot.sendMessage(chatId, `❌ Error selecting difficulty: ${fallbackMessage}`);
   }
 };
 
@@ -854,9 +601,6 @@ export const handleCallbackQuery = async (callbackQuery: BotCallbackQuery) => {
       case data === 'start_help':
         await handleHelp(callbackQuery);
         break;
-      case data === 'start_suggest':
-        await handleSuggestGrenade(callbackQuery);
-        break;
       default: {
         if (data.startsWith('map_')) {
           await handleMapCallback(callbackQuery, data.replace('map_', ''));
@@ -875,16 +619,6 @@ export const handleCallbackQuery = async (callbackQuery: BotCallbackQuery) => {
           } else {
             await handleSmokeDetailsCallback(callbackQuery, smokeId);
           }
-        } else if (data.startsWith('suggest_map_')) {
-          await handleSuggestMapCallback(callbackQuery, data.replace('suggest_map_', ''));
-        } else if (data.startsWith('suggest_side_')) {
-          await handleSuggestSideCallback(callbackQuery, data.replace('suggest_side_', ''));
-        } else if (data.startsWith('suggest_line_')) {
-          await handleSuggestLineCallback(callbackQuery, data.replace('suggest_line_', ''));
-        } else if (data.startsWith('suggest_grenade_')) {
-          await handleSuggestGrenadeTypeCallback(callbackQuery, data.replace('suggest_grenade_', ''));
-        } else if (data.startsWith('suggest_difficulty_')) {
-          await handleSuggestDifficultyCallback(callbackQuery, data.replace('suggest_difficulty_', ''));
         } else {
           console.log('Invalid callback data:', data);
           bot.sendMessage(chatId, '❌ Invalid callback data', { parse_mode: 'Markdown' });
@@ -895,183 +629,5 @@ export const handleCallbackQuery = async (callbackQuery: BotCallbackQuery) => {
   } catch (error) {
     console.error('handleCallbackQuery error:', error);
     bot.sendMessage(chatId, '❌ Error occurred', { parse_mode: 'Markdown' });
-  }
-};
-
-// Обработчик текстовых сообщений для предложения гранат
-export const handleSuggestMessage = async (msg: BotMessage) => {
-  const chatId = msg.chat.id;
-  const text = msg.text ?? '';
-  const state = suggestStates.get(chatId);
-
-  if (!state) {
-    return;
-  }
-
-  switch (state.step) {
-    case 'enter_name':
-      state.name = text;
-      state.step = 'enter_instructions';
-      bot.sendMessage(chatId, '📝 Enter detailed instructions for your grenade:');
-      break;
-    case 'enter_instructions': {
-      state.lineup_instructions = text;
-      state.step = 'upload_media';
-
-      const message = `📸 *Upload Media*
-
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${getDifficultyName(state.filterParams.difficulty)}
-
-*Name:* ${state.name}
-*Instructions:* ${state.lineup_instructions}
-
-Send photos/videos for your grenade (optional):
-• Format: JPG, PNG, MP4
-• Size: up to 10MB
-• You can send multiple files at once
-
-Or send "skip" to submit without media.`;
-
-      bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-      break;
-    }
-    case 'upload_media':
-      if (text.toLowerCase() === 'skip') {
-        // Пропускаем загрузку медиафайлов
-        await saveSuggestedGrenade(state, []);
-      }
-      break;
-    default:
-      break;
-  }
-};
-
-// Функция для сохранения предложенной гранаты
-export const saveSuggestedGrenade = async (state: SuggestState, mediaFiles: SuggestedMediaFile[] = []) => {
-  const chatId = state.chatId;
-
-  try {
-    const smokeData: SuggestedSmokeInput = {
-      name: state.name ?? '',
-      lineup_instructions: state.lineup_instructions ?? '',
-      difficulty: state.filterParams.difficulty as DifficultyKey,
-      side: state.filterParams.side as SideKey,
-      line: state.filterParams.line as LineKey,
-      grenadeType: state.filterParams.grenadeType as GrenadeTypeKey,
-      imageUrl: null
-    };
-
-    const suggestedSmokeId = await addSuggestedSmoke(state.filterParams.mapName as MapKey, smokeData, state.userId, state.username);
-
-    if (mediaFiles.length > 0) {
-      for (const file of mediaFiles) {
-        await saveSuggestedSmokeImage(suggestedSmokeId, file.fileId, file.type, file.caption ?? null);
-      }
-    }
-
-    const successMessage = `✅ *Grenade suggestion submitted successfully!*
-
-*Details:*
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${getDifficultyName(state.filterParams.difficulty)}
-
-*Name:* ${state.name}
-*Instructions:* ${state.lineup_instructions}
-*Media files:* ${mediaFiles.length}
-
-Your suggestion will be reviewed by admins. Thank you!`;
-
-    bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
-    suggestStates.delete(chatId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error saving suggested grenade:', error);
-    bot.sendMessage(chatId, `❌ Error submitting suggestion: ${message}`);
-    suggestStates.delete(chatId);
-  }
-};
-
-// Обработчик фотографий для предложения гранат
-export const handleSuggestPhoto = async (msg: BotMessage) => {
-  const chatId = msg.chat.id;
-  const state = suggestStates.get(chatId);
-
-  if (!state || state.step !== 'upload_media') {
-    return; // Игнорируем фото, если не в процессе предложения гранаты
-  }
-
-  if (msg.media_group_id) {
-    return; // Медиагруппы обрабатываются отдельно
-  }
-
-  const photo = msg.photo?.[msg.photo.length - 1]; // Получаем последнюю фотографию
-  const fileId = photo?.file_id ?? '';
-
-  // Сохраняем предложенную гранату с фото
-  await saveSuggestedGrenade(state, [{
-    type: 'photo',
-    fileId: fileId
-  }]);
-};
-
-// Обработчик видео для предложения гранат
-export const handleSuggestVideo = async (msg: BotMessage) => {
-  const chatId = msg.chat.id;
-  const state = suggestStates.get(chatId);
-
-  if (!state || state.step !== 'upload_media') {
-    return; // Игнорируем видео, если не в процессе предложения гранаты
-  }
-
-  if (msg.media_group_id) {
-    return; // Медиагруппы обрабатываются отдельно
-  }
-
-  const fileId = msg.video?.file_id ?? '';
-
-  // Сохраняем предложенную гранату с видео
-  await saveSuggestedGrenade(state, [{
-    type: 'video',
-    fileId: fileId ?? ''
-  }]);
-};
-
-// Обработчик группы медиафайлов для предложения гранат
-export const handleSuggestMediaGroup = async (messages: BotMessage[]) => {
-  const msg = messages[0];
-  const chatId = msg.chat.id;
-  const state = suggestStates.get(chatId);
-
-  if (!state || state.step !== 'upload_media') {
-    return; // Игнорируем медиагруппу, если не в процессе предложения гранаты
-  }
-
-  const mediaFiles: SuggestedMediaFile[] = [];
-
-  for (const message of messages) {
-    if (message.photo) {
-      const photo = message.photo[message.photo.length - 1];
-      mediaFiles.push({
-        type: 'photo',
-        fileId: photo.file_id
-      });
-    } else if (message.video) {
-      const video = message.video;
-      mediaFiles.push({
-        type: 'video',
-        fileId: video.file_id
-      });
-    }
-  }
-
-  if (mediaFiles.length > 0) {
-    await saveSuggestedGrenade(state, mediaFiles);
   }
 };

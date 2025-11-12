@@ -14,5 +14,6 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     telegramBotToken: process.env.BOT_TOKEN || '',
+    databaseUrl: process.env.DATABASE_URL || '',
   },
 });
