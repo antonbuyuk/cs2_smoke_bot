@@ -25,6 +25,20 @@ export const getAuthSession = (event: H3Event): AuthSession | null => {
 };
 
 export const requireAuth = (event: H3Event): AuthSession => {
+  const config = useRuntimeConfig(event);
+
+  // В режиме разработки возвращаем моковую сессию
+  if (config.developMode) {
+    return {
+      userId: 'dev-user-1',
+      username: 'devuser',
+      firstName: 'Dev',
+      lastName: 'User',
+      photoUrl: undefined,
+      authDate: Date.now(),
+    };
+  }
+
   const session = getAuthSession(event);
 
   if (!session) {

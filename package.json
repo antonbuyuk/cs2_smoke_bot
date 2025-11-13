@@ -1,0 +1,25 @@
+{
+  "name": "cs2-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:admin",
+    "dev:admin": "npm run dev --workspace=admin",
+    "dev:admin:ngrok": "concurrently \"npm run dev:admin\" \"ngrok http 3000\" --names \"admin,ngrok\" --prefix-colors \"blue,yellow\"",
+    "dev:bot": "npm run dev --workspace=cs2-smoke-bot",
+    "dev:all": "concurrently \"npm run dev:admin\" \"npm run dev:bot\" \"ngrok http 3000\" --names \"admin,bot,ngrok\" --prefix-colors \"blue,green,yellow\"",
+    "build": "npm run build --workspaces",
+    "build:admin": "npm run build --workspace=admin",
+    "build:bot": "npm run build --workspace=cs2-smoke-bot",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
+

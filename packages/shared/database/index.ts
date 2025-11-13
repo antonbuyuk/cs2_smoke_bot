@@ -24,6 +24,13 @@ import {
   getSmokeById,
   clearAllSmokes,
   getAllSmokes,
+  RecordInUseError,
+  getMapUsageCount,
+  getSideUsageCount,
+  getDifficultyUsageCount,
+  getLineUsageCount,
+  getGrenadeTypeUsageCount,
+  getReferenceTablesCounts,
 } from './database';
 
 export {
@@ -51,4 +58,11 @@ export {
   getSmokeById,
   clearAllSmokes,
   getAllSmokes,
+  RecordInUseError,
+  getMapUsageCount,
+  getSideUsageCount,
+  getDifficultyUsageCount,
+  getLineUsageCount,
+  getGrenadeTypeUsageCount,
+  getReferenceTablesCounts,
 };

@@ -1,4 +1,11 @@
 export default defineNuxtRouteMiddleware(async (to) => {
+  const config = useRuntimeConfig();
+
+  // В режиме разработки пропускаем все проверки авторизации
+  if (config.public.developMode) {
+    return;
+  }
+
   // Пропускаем страницу логина без проверки
   if (to.path === '/login') {
     const { isAuthenticated, fetchUser } = useAuth();

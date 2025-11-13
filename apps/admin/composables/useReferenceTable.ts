@@ -13,16 +13,23 @@ type ReferenceTableConfig = {
   itemNameLowercase: string;
 };
 
-export const useReferenceTable = async <T extends ReferenceRecord>(config: ReferenceTableConfig) => {
-  const { data, pending, error, refresh } = await useFetch(`/api/${config.apiPath}`, {
+export const useReferenceTable = <T extends ReferenceRecord>(config: ReferenceTableConfig) => {
+  const apiUrl = `/api/${config.apiPath}`;
+
+  const { data, pending, error, refresh } = useFetch(apiUrl, {
     transform: (response: { data: T[] }) => response.data,
     onResponseError({ response }) {
+      console.error(`[useReferenceTable] Error fetching ${apiUrl}:`, response.status, response.statusText);
+
       if (response.status === 401) {
         const { logout } = useAuth();
         logout().then(() => {
           navigateTo('/login');
         });
       }
+    },
+    onRequestError({ error: requestError }) {
+      console.error(`[useReferenceTable] Request error for ${apiUrl}:`, requestError);
     },
   });
 
@@ -86,9 +93,18 @@ export const useReferenceTable = async <T extends ReferenceRecord>(config: Refer
       });
 
       await refresh();
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : `Failed to delete ${config.itemNameLowercase}`;
-      deleteError.value = errorMessage;
+      deleteError.value = null;
+    } catch (err: any) {
+      // Обработка ошибки использования записи (409 Conflict)
+      if (err?.status === 409 || err?.statusCode === 409) {
+        // Приоритет: data.message > statusMessage > message > дефолтное сообщение
+        const message =
+          err?.data?.message || err?.statusMessage || err?.message || `Невозможно удалить ${config.itemNameLowercase}: запись используется в других записях`;
+        deleteError.value = message;
+      } else {
+        const errorMessage = err instanceof Error ? err.message : `Не удалось удалить ${config.itemNameLowercase}`;
+        deleteError.value = errorMessage;
+      }
     } finally {
       deletingIds.value.delete(id);
     }

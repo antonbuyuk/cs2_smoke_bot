@@ -28,14 +28,18 @@ export default defineNuxtConfig({
     },
   },
   devServer: {
-    host: '0.0.0.0',
+    // В режиме разработки используем localhost, иначе 0.0.0.0 для ngrok
+    host: process.env.DEVELOP_MODE === 'true' ? 'localhost' : '0.0.0.0',
+    port: 3000,
   },
   runtimeConfig: {
     telegramBotToken: process.env.BOT_TOKEN || '',
     telegramBotUsername: process.env.BOT_USERNAME || '',
     databaseUrl: process.env.DATABASE_URL || '',
+    developMode: process.env.DEVELOP_MODE === 'true',
     public: {
       telegramBotUsername: process.env.BOT_USERNAME || '',
+      developMode: process.env.DEVELOP_MODE === 'true',
     },
   },
 });

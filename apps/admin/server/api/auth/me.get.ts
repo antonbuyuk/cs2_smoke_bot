@@ -1,4 +1,19 @@
 export default defineEventHandler(async (event) => {
+  const config = useRuntimeConfig(event);
+
+  // В режиме разработки возвращаем мокового пользователя
+  if (config.developMode) {
+    return {
+      user: {
+        id: 'dev-user-1',
+        username: 'devuser',
+        firstName: 'Dev',
+        lastName: 'User',
+        photoUrl: undefined,
+      },
+    };
+  }
+
   const sessionCookie = getCookie(event, 'auth_session');
 
   if (!sessionCookie) {

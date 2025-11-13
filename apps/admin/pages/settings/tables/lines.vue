@@ -1,3 +1,9 @@
+<script setup lang="ts">
+definePageMeta({
+  layout: 'default',
+});
+</script>
+
 <template>
   <ReferenceTable
     title="Lines"

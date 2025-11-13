@@ -436,27 +436,158 @@ export const addGrenadeType = async (name: string, displayName: string): Promise
   return rows[0]?.id ?? 0;
 };
 
+// Функции проверки использования записей
+export const isMapUsed = async (id: number): Promise<boolean> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE map_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isSideUsed = async (id: number): Promise<boolean> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE side_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isDifficultyUsed = async (id: number): Promise<boolean> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE difficulty_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isLineUsed = async (id: number): Promise<boolean> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE line_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isGrenadeTypeUsed = async (id: number): Promise<boolean> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE grenade_type_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+// Функции получения количества использований
+export const getMapUsageCount = async (id: number): Promise<number> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE map_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10);
+};
+
+export const getSideUsageCount = async (id: number): Promise<number> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE side_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10);
+};
+
+export const getDifficultyUsageCount = async (id: number): Promise<number> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE difficulty_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10);
+};
+
+export const getLineUsageCount = async (id: number): Promise<number> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE line_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10);
+};
+
+export const getGrenadeTypeUsageCount = async (id: number): Promise<number> => {
+  const { rows } = await getPool().query('SELECT COUNT(*) as count FROM granades WHERE grenade_type_id = $1', [id]);
+  return Number.parseInt(rows[0]?.count ?? '0', 10);
+};
+
+// Функция для получения количества записей во всех справочных таблицах одним запросом
+export const getReferenceTablesCounts = async (): Promise<{
+  maps: number;
+  sides: number;
+  difficulties: number;
+  lines: number;
+  grenadeTypes: number;
+}> => {
+  const { rows } = await getPool().query(`
+    SELECT
+      (SELECT COUNT(*) FROM maps) as maps,
+      (SELECT COUNT(*) FROM sides) as sides,
+      (SELECT COUNT(*) FROM difficulties) as difficulties,
+      (SELECT COUNT(*) FROM lines) as lines,
+      (SELECT COUNT(*) FROM grenade_types) as grenade_types
+  `);
+
+  const row = rows[0];
+  return {
+    maps: Number.parseInt(row?.maps ?? '0', 10),
+    sides: Number.parseInt(row?.sides ?? '0', 10),
+    difficulties: Number.parseInt(row?.difficulties ?? '0', 10),
+    lines: Number.parseInt(row?.lines ?? '0', 10),
+    grenadeTypes: Number.parseInt(row?.grenade_types ?? '0', 10),
+  };
+};
+
+// Класс ошибки для использования записи
+export class RecordInUseError extends Error {
+  constructor(
+    public readonly recordType: string,
+    public readonly recordId: number,
+    public readonly usageCount: number
+  ) {
+    const recordTypeNames: Record<string, string> = {
+      map: 'карту',
+      side: 'сторону',
+      difficulty: 'сложность',
+      line: 'линию',
+      grenade_type: 'тип гранаты',
+    };
+
+    const recordName = recordTypeNames[recordType] || recordType.toLowerCase();
+    const countText = usageCount === 1 ? '1 гранате' : `${usageCount} гранатам`;
+    super(`Невозможно удалить ${recordName}: запись используется в ${countText}`);
+    this.name = 'RecordInUseError';
+  }
+}
+
 export const deleteMap = async (id: number): Promise<number> => {
+  // Maps можно удалять (CASCADE), но предупреждаем пользователя
+  const usageCount = await getMapUsageCount(id);
+  if (usageCount > 0) {
+    throw new RecordInUseError('map', id, usageCount);
+  }
+
   const result = await getPool().query('DELETE FROM maps WHERE id = $1', [id]);
   return result.rowCount ?? 0;
 };
 
 export const deleteSide = async (id: number): Promise<number> => {
+  // Sides нельзя удалять если используются (RESTRICT)
+  const usageCount = await getSideUsageCount(id);
+  if (usageCount > 0) {
+    throw new RecordInUseError('side', id, usageCount);
+  }
+
   const result = await getPool().query('DELETE FROM sides WHERE id = $1', [id]);
   return result.rowCount ?? 0;
 };
 
 export const deleteDifficulty = async (id: number): Promise<number> => {
+  // Difficulties нельзя удалять если используются (RESTRICT)
+  const usageCount = await getDifficultyUsageCount(id);
+  if (usageCount > 0) {
+    throw new RecordInUseError('difficulty', id, usageCount);
+  }
+
   const result = await getPool().query('DELETE FROM difficulties WHERE id = $1', [id]);
   return result.rowCount ?? 0;
 };
 
 export const deleteLine = async (id: number): Promise<number> => {
+  // Lines можно удалять (SET NULL), но предупреждаем пользователя
+  const usageCount = await getLineUsageCount(id);
+  if (usageCount > 0) {
+    throw new RecordInUseError('line', id, usageCount);
+  }
+
   const result = await getPool().query('DELETE FROM lines WHERE id = $1', [id]);
   return result.rowCount ?? 0;
 };
 
 export const deleteGrenadeType = async (id: number): Promise<number> => {
+  // Grenade types нельзя удалять если используются (RESTRICT)
+  const usageCount = await getGrenadeTypeUsageCount(id);
+  if (usageCount > 0) {
+    throw new RecordInUseError('grenade_type', id, usageCount);
+  }
+
   const result = await getPool().query('DELETE FROM grenade_types WHERE id = $1', [id]);
   return result.rowCount ?? 0;
 };

@@ -11,7 +11,7 @@ const handleLogout = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-950 text-slate-50">
+  <div class="flex flex-col min-h-screen bg-slate-950 text-slate-50">
     <header v-if="isAuthenticated" class="border-b border-slate-800 bg-slate-900/70 backdrop-blur sticky top-0 z-50">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <NuxtLink to="/" class="text-xl font-semibold tracking-tight hover:text-sky-400 transition-colors">
@@ -27,7 +27,7 @@ const handleLogout = async () => {
             Smokes
           </NuxtLink>
           <NuxtLink
-            to="/settings/tables/maps"
+            to="/settings"
             class="text-sm text-slate-400 hover:text-slate-200 transition-colors"
             active-class="text-sky-400 font-medium"
           >
@@ -58,7 +58,7 @@ const handleLogout = async () => {
       </div>
     </header>
 
-    <main>
+    <main class="grow">
       <nuxt-page />
     </main>
   </div>

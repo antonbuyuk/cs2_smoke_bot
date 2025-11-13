@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-slate-950 text-slate-50">
+  <div class="bg-slate-950 text-slate-50">
     <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <h1 class="text-xl font-semibold tracking-tight">{{ title }}</h1>
@@ -114,11 +114,13 @@
         v-else-if="error"
         class="rounded-lg border border-rose-900/50 bg-rose-900/20 px-4 py-3 text-rose-200"
       >
-        {{ error.statusMessage ?? `Не удалось загрузить ${itemNamePluralLowercase}` }}
+        <p class="font-medium">Ошибка загрузки данных</p>
+        <p class="text-sm mt-1">{{ error.statusMessage ?? error.message ?? `Не удалось загрузить ${itemNamePluralLowercase}` }}</p>
+        <p class="text-xs mt-2 text-rose-300/70">Статус: {{ error.statusCode ?? 'Unknown' }}</p>
       </section>
 
       <!-- Таблица -->
-      <section v-else class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
+      <section v-else-if="!pending && !error" class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
         <table class="w-full">
           <thead class="border-b border-slate-800 bg-slate-800/50">
             <tr>
@@ -208,6 +210,7 @@ type Props = {
 
 const props = defineProps<Props>();
 
+// Используем композабл без await, так как он сам обрабатывает async логику
 const {
   items,
   pending,
@@ -221,7 +224,7 @@ const {
   handleDelete,
   isDeleting,
   deleteError,
-} = await useReferenceTable<ReferenceRecord>({
+} = useReferenceTable<ReferenceRecord>({
   apiPath: props.apiPath,
   itemName: props.itemName,
   itemNamePlural: props.itemNamePlural,

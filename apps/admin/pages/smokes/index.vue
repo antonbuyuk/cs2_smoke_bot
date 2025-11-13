@@ -63,7 +63,7 @@ const formatLine = (line: string | null | undefined) => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-950 text-slate-50">
+  <div class="bg-slate-950 text-slate-50">
     <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <h1 class="text-xl font-semibold tracking-tight">Smokes</h1>

@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-slate-950 flex items-center justify-center px-4">
+  <div class="bg-slate-950 flex items-center justify-center px-4">
     <div class="w-full max-w-md">
       <div class="bg-slate-900 rounded-lg border border-slate-800 p-8 shadow-xl">
         <div class="text-center mb-8">
@@ -40,6 +40,12 @@ definePageMeta({
 });
 
 const config = useRuntimeConfig();
+
+// В режиме разработки сразу редиректим на главную
+if (config.public.developMode) {
+  await navigateTo('/');
+}
+
 const botUsername = config.public.telegramBotUsername;
 
 const { login } = useAuth();
