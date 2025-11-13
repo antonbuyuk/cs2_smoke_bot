@@ -6,7 +6,7 @@ const sharedPath = fileURLToPath(new URL('../../packages/shared', import.meta.ur
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxtjs/i18n'],
   alias: {
     '@shared': sharedPath,
   },
@@ -41,5 +41,21 @@ export default defineNuxtConfig({
       telegramBotUsername: process.env.BOT_USERNAME || '',
       developMode: process.env.DEVELOP_MODE === 'true',
     },
+  },
+  i18n: {
+    locales: [
+      { code: 'ru', iso: 'ru-RU', file: 'ru.json', name: 'Русский' },
+      { code: 'en', iso: 'en-US', file: 'en.json', name: 'English' },
+    ],
+    lazy: true,
+    langDir: 'locales',
+    defaultLocale: 'ru',
+    strategy: 'no_prefix',
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'i18n_redirected',
+      redirectOn: 'root',
+    },
+    vueI18n: './i18n.config.ts',
   },
 });

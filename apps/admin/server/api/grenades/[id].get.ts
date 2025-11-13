@@ -9,23 +9,23 @@ export default defineEventHandler(async (event) => {
   if (Number.isNaN(parsedId)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Invalid smoke id',
+      statusMessage: 'Invalid grenade id',
     });
   }
 
-  const smoke = await getSmokeById(parsedId);
+  const grenade = await getSmokeById(parsedId);
 
-  if (!smoke) {
+  if (!grenade) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Smoke not found',
+      statusMessage: 'Grenade not found',
     });
   }
 
   const media = await getSmokeMedia(parsedId);
 
   return {
-    smoke,
+    smoke: grenade,
     media,
   };
 });

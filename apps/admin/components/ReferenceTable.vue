@@ -8,10 +8,10 @@
             @click="showAddForm = true"
             class="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
-            + Add {{ itemName }}
+            + Добавить {{ itemName }}
           </button>
           <NuxtLink to="/settings" class="text-sm text-slate-400 hover:text-slate-200">
-            ← Back to Settings
+            ← Назад
           </NuxtLink>
         </div>
       </div>
@@ -24,7 +24,7 @@
         class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-6"
       >
         <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Add New {{ itemName }}</h2>
+          <h2 class="text-lg font-semibold">Добавить новый {{ itemName }}</h2>
           <button
             @click="closeAddForm"
             class="text-slate-400 hover:text-slate-200"
@@ -40,7 +40,7 @@
               :for="`${itemNameLowercase}-name`"
               class="mb-2 block text-sm font-medium text-slate-300"
             >
-              Name (Key) <span class="text-slate-500">*</span>
+              Название (ключ) <span class="text-slate-500">*</span>
             </label>
             <input
               :id="`${itemNameLowercase}-name`"

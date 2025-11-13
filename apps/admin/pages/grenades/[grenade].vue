@@ -9,15 +9,19 @@ import {
 } from '@shared/config/constants';
 import type { SmokeWithMap, SmokeMediaRecord } from '@shared/utils/types';
 
-const route = useRoute();
-const smokeId = computed(() => Number.parseInt(String(route.params.smoke), 10));
+definePageMeta({
+  layout: 'default',
+});
 
-const { data, pending, error } = await useFetch(`/api/smokes/${smokeId.value}`, {
-  key: `smoke-${smokeId.value}`,
+const route = useRoute();
+const grenadeId = computed(() => Number.parseInt(String(route.params.grenade), 10));
+
+const { data, pending, error } = await useFetch(`/api/grenades/${grenadeId.value}`, {
+  key: `grenade-${grenadeId.value}`,
   transform: (payload: { smoke: SmokeWithMap; media: SmokeMediaRecord[] }) => payload,
 });
 
-const smoke = computed(() => data.value?.smoke);
+const grenade = computed(() => data.value?.smoke);
 const media = computed(() => data.value?.media ?? []);
 
 const buildMediaUrl = (fileId: string) => `/api/media/${fileId}`;
@@ -31,23 +35,23 @@ const formatLine = (value: string | null | undefined) =>
 
 <template>
   <main class="mx-auto max-w-3xl px-6 py-8 text-slate-50">
-    <NuxtLink to="/smokes" class="text-sm text-slate-400 hover:text-slate-200">← Back</NuxtLink>
+    <NuxtLink to="/grenades" class="text-sm text-slate-400 hover:text-slate-200">{{ $t('components.grenadeDetail.back') }}</NuxtLink>
 
-    <section v-if="pending" class="mt-8 text-slate-400">Loading…</section>
+    <section v-if="pending" class="mt-8 text-slate-400">{{ $t('components.grenadeDetail.loading') }}</section>
     <section v-else-if="error" class="mt-8 text-rose-400">
-      {{ error.statusMessage ?? 'Failed to load smoke' }}
+      {{ error.statusMessage ?? $t('components.grenadeDetail.error') }}
     </section>
-    <section v-else-if="smoke" class="mt-6 space-y-6">
+    <section v-else-if="grenade" class="mt-6 space-y-6">
       <header>
-        <h1 class="text-2xl font-semibold">{{ smoke.name }}</h1>
+        <h1 class="text-2xl font-semibold">{{ grenade.name }}</h1>
         <p class="text-sm text-slate-400">
-          {{ formatMap(smoke.map_name) }} • {{ formatSide(smoke.side) }} •
-          {{ formatLine(smoke.line) }} • {{ formatDifficulty(smoke.difficulty) }}
+          {{ formatMap(grenade.map_name) }} • {{ formatSide(grenade.side) }} •
+          {{ formatLine(grenade.line) }} • {{ formatDifficulty(grenade.difficulty) }}
         </p>
       </header>
 
       <p class="whitespace-pre-line text-sm text-slate-200">
-        {{ smoke.lineup_instructions }}
+        {{ grenade.lineup_instructions }}
       </p>
 
       <div v-if="media.length" class="grid gap-4 md:grid-cols-2">
@@ -59,7 +63,7 @@ const formatLine = (value: string | null | undefined) =>
           <img
             v-if="item.media_type === 'photo'"
             :src="buildMediaUrl(item.file_id)"
-            alt="Smoke photo"
+            alt="Фото гранаты"
             class="w-full rounded-md object-cover"
             loading="lazy"
           />
@@ -75,7 +79,8 @@ const formatLine = (value: string | null | undefined) =>
           </p>
         </article>
       </div>
-      <p v-else class="text-sm text-slate-400">Медиа не прикреплены.</p>
+      <p v-else class="text-sm text-slate-400">{{ $t('components.grenadeDetail.noMedia') }}</p>
     </section>
   </main>
 </template>
+

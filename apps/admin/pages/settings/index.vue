@@ -14,43 +14,45 @@ const difficultiesCount = computed(() => countsData.value?.difficulties ?? 0);
 const linesCount = computed(() => countsData.value?.lines ?? 0);
 const grenadeTypesCount = computed(() => countsData.value?.grenadeTypes ?? 0);
 
-const referenceTables = [
+const { t } = useI18n();
+
+const referenceTables = computed(() => [
   {
-    name: 'Maps',
-    description: 'Управление картами',
+    name: t('pages.settings.tables.maps.name'),
+    description: t('pages.settings.tables.maps.description'),
     path: '/settings/tables/maps',
     count: mapsCount,
     icon: '🗺️',
   },
   {
-    name: 'Sides',
-    description: 'Управление сторонами (T, CT)',
+    name: t('pages.settings.tables.sides.name'),
+    description: t('pages.settings.tables.sides.description'),
     path: '/settings/tables/sides',
     count: sidesCount,
     icon: '⚔️',
   },
   {
-    name: 'Difficulties',
-    description: 'Управление уровнями сложности',
+    name: t('pages.settings.tables.difficulties.name'),
+    description: t('pages.settings.tables.difficulties.description'),
     path: '/settings/tables/difficulties',
     count: difficultiesCount,
     icon: '📊',
   },
   {
-    name: 'Lines',
-    description: 'Управление линиями (Plant A, B, Mid)',
+    name: t('pages.settings.tables.lines.name'),
+    description: t('pages.settings.tables.lines.description'),
     path: '/settings/tables/lines',
     count: linesCount,
     icon: '📍',
   },
   {
-    name: 'Grenade Types',
-    description: 'Управление типами гранат',
+    name: t('pages.settings.tables.grenadeTypes.name'),
+    description: t('pages.settings.tables.grenadeTypes.description'),
     path: '/settings/tables/grenade-types',
     count: grenadeTypesCount,
     icon: '💣',
   },
-];
+]);
 </script>
 
 <template>
@@ -58,18 +60,18 @@ const referenceTables = [
     <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <div>
-          <h1 class="text-xl font-semibold tracking-tight">Settings</h1>
-          <p class="mt-1 text-sm text-slate-400">Управление справочными таблицами</p>
+          <h1 class="text-xl font-semibold tracking-tight">{{ t('pages.settings.title') }}</h1>
+          <p class="mt-1 text-sm text-slate-400">{{ t('pages.settings.subtitle') }}</p>
         </div>
         <NuxtLink to="/" class="text-sm text-slate-400 hover:text-slate-200 transition-colors">
-          ← Back to Dashboard
+          {{ t('pages.settings.backToHome') }}
         </NuxtLink>
       </div>
     </header>
 
     <main class="mx-auto max-w-6xl px-6 py-8">
       <div v-if="pending" class="grid h-48 place-items-center rounded-lg border border-slate-800 bg-slate-900">
-        <span class="text-sm text-slate-400">Загружаем данные…</span>
+        <span class="text-sm text-slate-400">{{ t('pages.settings.loading') }}</span>
       </div>
 
       <div v-else class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -101,13 +103,13 @@ const referenceTables = [
       </div>
 
       <div class="mt-8 rounded-lg border border-slate-800 bg-slate-900 p-6">
-        <h2 class="text-lg font-semibold text-slate-200 mb-4">Информация</h2>
+        <h2 class="text-lg font-semibold text-slate-200 mb-4">{{ t('pages.settings.info.title') }}</h2>
         <div class="space-y-2 text-sm text-slate-400">
           <p>
-            Справочные таблицы используются для структурирования данных о гранатах. Вы можете добавлять, просматривать и удалять записи в каждой таблице.
+            {{ t('pages.settings.info.description') }}
           </p>
           <p>
-            <span class="text-slate-300 font-medium">Важно:</span> При удалении записи, которая используется в других таблицах (например, карта, на которую ссылаются гранаты), операция будет заблокирована для сохранения целостности данных.
+            <span class="text-slate-300 font-medium">{{ t('pages.settings.info.important') }}</span> {{ t('pages.settings.info.warning') }}
           </p>
         </div>
       </div>

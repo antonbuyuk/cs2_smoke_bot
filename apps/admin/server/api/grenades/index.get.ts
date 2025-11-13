@@ -19,18 +19,18 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const smokes = mapParam
+    const grenades = mapParam
       ? await getSmokesByMap(mapParam as RealMapKey)
       : await getAllSmokes();
 
     return {
-      data: smokes,
+      data: grenades,
     };
   } catch (error) {
-    console.error('Failed to fetch smokes', error);
+    console.error('Failed to fetch grenades', error);
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to load smokes',
+      statusMessage: 'Failed to load grenades',
       cause: error,
     });
   }

@@ -1,0 +1,96 @@
+{
+  "nav": {
+    "grenades": "Grenades",
+    "settings": "Settings",
+    "logout": "Logout",
+    "home": "Home"
+  },
+  "pages": {
+    "grenades": {
+      "title": "Grenades",
+      "description": "View stored grenades and filter by map.",
+      "allMaps": "All maps",
+      "map": "Map",
+      "loading": "Loading data…",
+      "error": "Failed to load grenades list. Please refresh the page.",
+      "notFound": "No grenades found for selected parameters.",
+      "more": "More",
+      "back": "Back"
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Reference tables management",
+      "backToHome": "← Back to home",
+      "loading": "Loading data…",
+      "error": "Failed to load settings statistics",
+      "info": {
+        "title": "Information",
+        "description": "Reference tables are used to structure grenade data. You can add, view, and delete entries in each table.",
+        "important": "Important:",
+        "warning": "When deleting a record that is used in other tables (for example, a map that grenades reference), the operation will be blocked to maintain data integrity."
+      },
+      "tables": {
+        "maps": {
+          "name": "Maps",
+          "description": "Map management"
+        },
+        "sides": {
+          "name": "Sides",
+          "description": "Side management (T, CT)"
+        },
+        "difficulties": {
+          "name": "Difficulties",
+          "description": "Difficulty level management"
+        },
+        "lines": {
+          "name": "Lines",
+          "description": "Line management (Plant A, B, Mid)"
+        },
+        "grenadeTypes": {
+          "name": "Grenade Types",
+          "description": "Grenade type management"
+        }
+      }
+    },
+    "login": {
+      "title": "CS2 Bot Admin",
+      "subtitle": "Sign in via Telegram to access the admin panel",
+      "authorizing": "Authorizing...",
+      "loadingWidget": "Loading widget...",
+      "terms": "By using this panel, you agree to the terms of use"
+    }
+  },
+  "components": {
+    "referenceTable": {
+      "add": "Add",
+      "back": "← Back",
+      "name": "Name (Key)",
+      "displayName": "Display Name",
+      "namePlaceholder": "Lowercase letters, numbers, and underscores only (max 50 chars)",
+      "displayNamePlaceholder": "Human-readable name (max 100 chars)",
+      "required": "*",
+      "cancel": "Cancel",
+      "adding": "Adding...",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "notFound": "not found",
+      "total": "Total"
+    },
+    "grenadeDetail": {
+      "back": "← Back",
+      "loading": "Loading…",
+      "error": "Failed to load grenade",
+      "noMedia": "No media attached."
+    }
+  },
+  "common": {
+    "loading": "Loading data…",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  }
+}
+

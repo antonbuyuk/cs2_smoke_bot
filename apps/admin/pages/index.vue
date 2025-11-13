@@ -3,7 +3,7 @@ definePageMeta({
   layout: 'default',
 });
 
-const { data: smokesData, pending: smokesPending } = await useFetch('/api/smokes', {
+const { data: grenadesData, pending: grenadesPending } = await useFetch('/api/grenades', {
   transform: (response: { data: unknown[] }) => response.data,
 });
 
@@ -11,9 +11,9 @@ const { data: mapsData, pending: mapsPending } = await useFetch('/api/maps', {
   transform: (response: { data: unknown[] }) => response.data,
 });
 
-const smokesCount = computed(() => smokesData.value?.length ?? 0);
+const grenadesCount = computed(() => grenadesData.value?.length ?? 0);
 const mapsCount = computed(() => mapsData.value?.length ?? 0);
-const isLoading = computed(() => smokesPending.value || mapsPending.value);
+const isLoading = computed(() => grenadesPending.value || mapsPending.value);
 </script>
 
 <template>

@@ -7,12 +7,12 @@ import type { NewSmokeInput, RealMapKey } from '@shared/utils/types';
 const isRealMapKey = (value: string): value is RealMapKey =>
   Object.prototype.hasOwnProperty.call(MAP_TYPES, value) && value !== 'all';
 
-type CreateSmokeBody = NewSmokeInput & {
+type CreateGrenadeBody = NewSmokeInput & {
   mapName: string;
 };
 
 export default defineEventHandler(async (event) => {
-  const payload = await readBody<CreateSmokeBody>(event);
+  const payload = await readBody<CreateGrenadeBody>(event);
 
   if (!payload?.mapName || typeof payload.mapName !== 'string') {
     throw createError({
@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const smokeData: NewSmokeInput = {
+  const grenadeData: NewSmokeInput = {
     name: payload.name,
     lineup_instructions: payload.lineup_instructions,
     imageUrl: payload.imageUrl ?? null,
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   };
 
   try {
-    const newId = await addSmoke(payload.mapName, smokeData);
+    const newId = await addSmoke(payload.mapName, grenadeData);
 
     return {
       id: newId,
@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to create smoke entry',
+      statusMessage: 'Failed to create grenade entry',
       cause: error,
     });
   }
