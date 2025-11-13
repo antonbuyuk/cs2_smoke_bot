@@ -1,41 +1,33 @@
 import type { BotMessage, BotCallbackQuery } from './bot';
-import type {
-  MapKey,
-  GrenadeTypeKey,
-  DifficultyKey,
-  SideKey,
-  LineKey,
-} from '../config/constants';
-
 import {
-  MAP_TYPES,
-  GRENADE_TYPES,
-  DIFFICULTY_LEVELS,
-  SIDE_TYPES,
-  LINE_TYPES,
-} from '../config/constants';
+  MAP_EMOJIS,
+  GRENADE_TYPE_EMOJIS,
+  DIFFICULTY_EMOJIS,
+  SIDE_EMOJIS,
+  LINE_EMOJIS,
+} from '../config/emojis';
 
-type Dictionary<T extends PropertyKey> = Record<T, unknown>;
-
-const hasDictionaryKey = <T extends Dictionary<PropertyKey>>(
-  dictionary: T,
-  key: PropertyKey,
-): key is keyof T => Object.prototype.hasOwnProperty.call(dictionary, key);
+// Типы для ключей (используются для валидации в боте)
+export type MapKey = keyof typeof MAP_EMOJIS;
+export type GrenadeTypeKey = keyof typeof GRENADE_TYPE_EMOJIS;
+export type DifficultyKey = keyof typeof DIFFICULTY_EMOJIS;
+export type SideKey = keyof typeof SIDE_EMOJIS;
+export type LineKey = keyof typeof LINE_EMOJIS;
 
 export const isMapKey = (value: string): value is MapKey =>
-  hasDictionaryKey(MAP_TYPES, value);
+  Object.prototype.hasOwnProperty.call(MAP_EMOJIS, value);
 
 export const isGrenadeTypeKey = (value: string): value is GrenadeTypeKey =>
-  hasDictionaryKey(GRENADE_TYPES, value);
+  Object.prototype.hasOwnProperty.call(GRENADE_TYPE_EMOJIS, value);
 
 export const isDifficultyKey = (value: string): value is DifficultyKey =>
-  hasDictionaryKey(DIFFICULTY_LEVELS, value);
+  Object.prototype.hasOwnProperty.call(DIFFICULTY_EMOJIS, value);
 
 export const isSideKey = (value: string): value is SideKey =>
-  hasDictionaryKey(SIDE_TYPES, value);
+  Object.prototype.hasOwnProperty.call(SIDE_EMOJIS, value);
 
 export const isLineKey = (value: string): value is LineKey =>
-  hasDictionaryKey(LINE_TYPES, value);
+  Object.prototype.hasOwnProperty.call(LINE_EMOJIS, value);
 
 type MessageContext = BotMessage | BotCallbackQuery;
 

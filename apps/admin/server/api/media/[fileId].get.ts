@@ -13,6 +13,55 @@ interface TelegramFileResponse {
 }
 
 export default defineEventHandler(async (event) => {
+  const fileIdParam = event.context.params?.fileId;
+  let fileId = typeof fileIdParam === 'string' ? decodeURIComponent(fileIdParam) : undefined;
+
+  if (!fileId) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'file_id is required',
+    });
+  }
+
+  // Если fileId начинается с uploads/ или /uploads/, это локальный файл
+  if (fileId.startsWith('uploads/') || fileId.startsWith('/uploads/')) {
+    const fileName = fileId.replace(/^\/?uploads\//, '');
+
+    // Используем утилиту storage для чтения файла
+    const { getFile, fileExists } = await import('../../utils/storage');
+
+    if (!fileExists(fileName)) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: 'File not found',
+      });
+    }
+
+    // Определяем MIME тип по расширению
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      mp4: 'video/mp4',
+      mov: 'video/quicktime',
+      avi: 'video/x-msvideo',
+      webm: 'video/webm',
+    };
+    const contentType = mimeTypes[ext || ''] || 'application/octet-stream';
+
+    const fileBuffer = await getFile(fileName);
+
+    event.node.res.setHeader('Content-Type', contentType);
+    event.node.res.setHeader('Content-Length', fileBuffer.length.toString());
+    // Добавляем заголовки для кэширования
+    event.node.res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+    return fileBuffer;
+  }
+
+  // Иначе это Telegram file_id - используем старую логику
   const config = useRuntimeConfig(event);
   const token = config.telegramBotToken || process.env.BOT_TOKEN;
 
@@ -25,16 +74,6 @@ export default defineEventHandler(async (event) => {
 
   const TELEGRAM_API_BASE = `https://api.telegram.org/bot${token}`;
   const TELEGRAM_FILE_BASE = `https://api.telegram.org/file/bot${token}`;
-
-  const fileIdParam = event.context.params?.fileId;
-  const fileId = typeof fileIdParam === 'string' ? fileIdParam : undefined;
-
-  if (!fileId) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'file_id is required',
-    });
-  }
 
   const response = await fetch(`${TELEGRAM_API_BASE}/getFile`, {
     method: 'POST',

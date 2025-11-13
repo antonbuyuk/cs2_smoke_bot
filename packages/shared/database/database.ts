@@ -19,7 +19,7 @@ import type {
   LineKey,
   GrenadeTypeKey,
   MapKey,
-} from '../config/constants';
+} from '../utils/guards';
 
 let pool: Pool | undefined;
 let databaseInitialized = false;
@@ -63,6 +63,38 @@ const tableExists = async (tableName: string): Promise<boolean> => {
   return rows[0]?.exists ?? false;
 };
 
+// Проверка существования колонки в таблице
+const columnExists = async (client: Queryable, tableName: string, columnName: string): Promise<boolean> => {
+  const { rows } = await client.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_schema = 'public'
+      AND table_name = $1
+      AND column_name = $2
+    )`,
+    [tableName, columnName]
+  );
+  return rows[0]?.exists ?? false;
+};
+
+// Миграция для добавления недостающих колонок
+const runMigrations = async (client: PoolClient) => {
+  // Проверяем, существует ли таблица granade_media
+  const granadeMediaExists = await tableExists('granade_media');
+
+  if (granadeMediaExists) {
+    // Добавляем sort_order в granade_media, если его нет
+    const sortOrderExists = await columnExists(client, 'granade_media', 'sort_order');
+    if (!sortOrderExists) {
+      await client.query(`
+        ALTER TABLE granade_media
+        ADD COLUMN sort_order INTEGER DEFAULT 0
+      `);
+      console.log('Added sort_order column to granade_media table');
+    }
+  }
+};
+
 // Создание структуры базы данных
 const createDatabaseStructure = async () => {
   const client = await getPool().connect();
@@ -74,7 +106,8 @@ const createDatabaseStructure = async () => {
     const mapsExists = await tableExists('maps');
 
     if (mapsExists) {
-      // Структура уже создана
+      // Структура уже создана, но нужно проверить миграции
+      await runMigrations(client);
       await client.query('COMMIT');
       return;
     }
@@ -144,6 +177,7 @@ const createDatabaseStructure = async () => {
         file_id TEXT NOT NULL,
         media_type TEXT NOT NULL CHECK (media_type IN ('photo', 'video')),
         caption TEXT,
+        sort_order INTEGER DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -155,6 +189,9 @@ const createDatabaseStructure = async () => {
     await client.query('CREATE INDEX idx_granades_line_id ON granades (line_id)');
     await client.query('CREATE INDEX idx_granades_grenade_type_id ON granades (grenade_type_id)');
     await client.query('CREATE INDEX idx_granade_media_granade_id ON granade_media (granade_id)');
+
+    // Запускаем миграции для существующих таблиц
+    await runMigrations(client);
 
     // Заполнение справочных таблиц данными
     await client.query(`
@@ -619,7 +656,7 @@ export const getSmokesByMap = async (mapName: RealMapKey): Promise<SmokeWithMap[
       LEFT JOIN lines l ON g.line_id = l.id
       JOIN grenade_types gt ON g.grenade_type_id = gt.id
       WHERE m.name = $1
-      ORDER BY g.name
+      ORDER BY g.created_at DESC
     `,
     [mapName]
   );
@@ -653,7 +690,7 @@ export const getAllSmokes = async (): Promise<SmokeWithMap[]> => {
       JOIN sides si ON g.side_id = si.id
       LEFT JOIN lines l ON g.line_id = l.id
       JOIN grenade_types gt ON g.grenade_type_id = gt.id
-      ORDER BY m.display_name, g.name
+      ORDER BY g.created_at DESC
     `
   );
 
@@ -662,32 +699,42 @@ export const getAllSmokes = async (): Promise<SmokeWithMap[]> => {
 
 export const addSmoke = async (mapName: string, smokeData: NewSmokeInput): Promise<number> => {
   return withTransaction(async (client) => {
-    const mapId = await resolveMapId(client, mapName);
-    const difficultyId = await resolveDifficultyId(client, smokeData.difficulty);
-    const sideId = await resolveSideId(client, smokeData.side);
-    const lineId = await resolveLineId(client, smokeData.line);
-    const grenadeTypeId = await resolveGrenadeTypeId(client, smokeData.grenadeType ?? 'smoke');
+    try {
+      console.log('Adding smoke with data:', { mapName, smokeData });
+      const mapId = await resolveMapId(client, mapName);
+      const difficultyId = await resolveDifficultyId(client, smokeData.difficulty);
+      const sideId = await resolveSideId(client, smokeData.side);
+      const lineId = await resolveLineId(client, smokeData.line);
+      const grenadeTypeId = await resolveGrenadeTypeId(client, smokeData.grenadeType ?? 'smoke');
 
-    const insertResult = await client.query<{ id: number }>(
-      `
-        INSERT INTO granades (map_id, name, display_name, lineup_instructions, image_url, difficulty_id, side_id, line_id, grenade_type_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id
-      `,
-      [
-        mapId,
-        smokeData.name,
-        null, // display_name can be null
-        smokeData.lineup_instructions,
-        toNullable(smokeData.imageUrl),
-        difficultyId,
-        sideId,
-        lineId,
-        grenadeTypeId,
-      ]
-    );
+      console.log('Resolved IDs:', { mapId, difficultyId, sideId, lineId, grenadeTypeId });
 
-    return insertResult.rows[0]?.id ?? 0;
+      const insertResult = await client.query<{ id: number }>(
+        `
+          INSERT INTO granades (map_id, name, display_name, lineup_instructions, image_url, difficulty_id, side_id, line_id, grenade_type_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id
+        `,
+        [
+          mapId,
+          smokeData.name,
+          null, // display_name can be null
+          smokeData.lineup_instructions,
+          toNullable(smokeData.imageUrl),
+          difficultyId,
+          sideId,
+          lineId,
+          grenadeTypeId,
+        ]
+      );
+
+      const newId = insertResult.rows[0]?.id ?? 0;
+      console.log('Created smoke with ID:', newId);
+      return newId;
+    } catch (error) {
+      console.error('Error in addSmoke:', error);
+      throw error;
+    }
   });
 };
 
@@ -695,14 +742,46 @@ export const saveSmokeImage = async (
   smokeId: number,
   fileId: string,
   mediaType: MediaType = 'photo',
-  caption: string | null = null
+  caption: string | null = null,
+  sortOrder: number = 0
 ): Promise<number> => {
   const { rows } = await getPool().query<{ id: number }>(
-    'INSERT INTO granade_media (granade_id, file_id, media_type, caption) VALUES ($1, $2, $3, $4) RETURNING id',
-    [smokeId, fileId, mediaType, caption]
+    'INSERT INTO granade_media (granade_id, file_id, media_type, caption, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [smokeId, fileId, mediaType, caption, sortOrder]
   );
 
   return rows[0]?.id ?? 0;
+};
+
+export const saveSmokeMediaBatch = async (
+  smokeId: number,
+  mediaFiles: Array<{ fileId: string; mediaType: MediaType; caption?: string | null; sortOrder: number }>
+): Promise<number[]> => {
+  return withTransaction(async (client) => {
+    const ids: number[] = [];
+
+    for (const media of mediaFiles) {
+      // Валидация данных
+      if (!media.fileId || typeof media.fileId !== 'string') {
+        throw new Error(`Invalid fileId: ${media.fileId}`);
+      }
+      if (!media.mediaType || (media.mediaType !== 'photo' && media.mediaType !== 'video')) {
+        throw new Error(`Invalid mediaType: ${media.mediaType}`);
+      }
+      if (typeof media.sortOrder !== 'number') {
+        throw new Error(`Invalid sortOrder: ${media.sortOrder}`);
+      }
+
+      const { rows } = await client.query<{ id: number }>(
+        'INSERT INTO granade_media (granade_id, file_id, media_type, caption, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        [smokeId, media.fileId, media.mediaType, media.caption ?? null, media.sortOrder]
+      );
+
+      ids.push(rows[0]?.id ?? 0);
+    }
+
+    return ids;
+  });
 };
 
 export const getSmokeMedia = async (smokeId: number): Promise<SmokeMediaRecord[]> => {
@@ -711,7 +790,7 @@ export const getSmokeMedia = async (smokeId: number): Promise<SmokeMediaRecord[]
       SELECT id, granade_id as smoke_id, file_id, media_type, caption, created_at
       FROM granade_media
       WHERE granade_id = $1
-      ORDER BY created_at
+      ORDER BY sort_order ASC, created_at ASC
     `,
     [smokeId]
   );
@@ -767,4 +846,46 @@ export const clearAllSmokes = async (): Promise<void> => {
     await client.query('DELETE FROM granade_media');
     await client.query('DELETE FROM granades');
   });
+};
+
+// Функции валидации через БД
+export const isValidMapName = async (mapName: string): Promise<boolean> => {
+  const { rows } = await getPool().query<{ count: string }>(
+    'SELECT COUNT(*) as count FROM maps WHERE name = $1',
+    [mapName]
+  );
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isValidSideName = async (sideName: string): Promise<boolean> => {
+  const { rows } = await getPool().query<{ count: string }>(
+    'SELECT COUNT(*) as count FROM sides WHERE name = $1',
+    [sideName]
+  );
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isValidDifficultyName = async (difficultyName: string): Promise<boolean> => {
+  const { rows } = await getPool().query<{ count: string }>(
+    'SELECT COUNT(*) as count FROM difficulties WHERE name = $1',
+    [difficultyName]
+  );
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isValidLineName = async (lineName: string | null): Promise<boolean> => {
+  if (!lineName) return true; // null допустим
+  const { rows } = await getPool().query<{ count: string }>(
+    'SELECT COUNT(*) as count FROM lines WHERE name = $1',
+    [lineName]
+  );
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+export const isValidGrenadeTypeName = async (grenadeTypeName: string): Promise<boolean> => {
+  const { rows } = await getPool().query<{ count: string }>(
+    'SELECT COUNT(*) as count FROM grenade_types WHERE name = $1',
+    [grenadeTypeName]
+  );
+  return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
 };

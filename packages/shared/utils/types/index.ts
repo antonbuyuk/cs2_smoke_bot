@@ -4,8 +4,17 @@ import type {
   DifficultyKey,
   SideKey,
   LineKey,
-  AdminActionKey
-} from '../../config/constants';
+} from '../utils/guards';
+import type { AdminActionKey } from '../../config/constants';
+
+// Реэкспортируем типы для удобства использования
+export type {
+  MapKey,
+  GrenadeTypeKey,
+  DifficultyKey,
+  SideKey,
+  LineKey,
+};
 
 export interface KeyboardOption {
   emoji: string;

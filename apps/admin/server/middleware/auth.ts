@@ -1,4 +1,4 @@
-import { requireAuth } from '../utils/auth';
+import { requireAdmin } from '../utils/auth';
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event);
@@ -15,9 +15,9 @@ export default defineEventHandler(async (event) => {
     return;
   }
 
-  // Защищаем все остальные API endpoints
+  // Защищаем все остальные API endpoints - требуем права администратора
   if (url.startsWith('/api/')) {
-    requireAuth(event);
+    requireAdmin(event);
   }
 });
 

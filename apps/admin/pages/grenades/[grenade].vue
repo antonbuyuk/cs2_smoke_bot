@@ -24,7 +24,11 @@ const { data, pending, error } = await useFetch(`/api/grenades/${grenadeId.value
 const grenade = computed(() => data.value?.smoke);
 const media = computed(() => data.value?.media ?? []);
 
-const buildMediaUrl = (fileId: string) => `/api/media/${fileId}`;
+const buildMediaUrl = (fileId: string) => {
+  // Если fileId начинается с /, убираем его для правильного формирования URL
+  const cleanFileId = fileId.startsWith('/') ? fileId.slice(1) : fileId;
+  return `/api/media/${encodeURIComponent(cleanFileId)}`;
+};
 
 const formatMap = (value: string) => getMapName(value) ?? value;
 const formatSide = (value: string) => getSideName(value) ?? value;

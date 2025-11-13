@@ -56,6 +56,12 @@ const configError = ref<string | null>(
   !botUsername ? 'Telegram bot username is not configured. Please set BOT_USERNAME in .env file.' : null
 );
 
+// Проверяем параметр ошибки в URL
+const route = useRoute();
+if (route.query.error === 'access_denied') {
+  error.value = 'Доступ запрещен. Требуются права администратора.';
+}
+
 const handleTelegramAuth = async (user: Record<string, string>) => {
   console.log('Telegram auth callback called with:', user);
   console.log('User data keys:', Object.keys(user));
@@ -78,13 +84,15 @@ const handleTelegramAuth = async (user: Record<string, string>) => {
     } else {
       error.value = result.error || 'Failed to login';
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Login error:', err);
     const errorMessage = err instanceof Error ? err.message : 'An error occurred';
 
-    // Обработка специфичных ошибок Telegram
+    // Обработка специфичных ошибок
     if (errorMessage.includes('domain') || errorMessage.includes('invalid')) {
       error.value = 'Домен бота не настроен. Настройте домен в @BotFather в разделе "Bot Settings" -> "Domain".';
+    } else if (errorMessage.includes('Access denied') || errorMessage.includes('Admin privileges') || err?.status === 403 || err?.statusCode === 403) {
+      error.value = 'Доступ запрещен. Требуются права администратора. Обратитесь к администратору для получения доступа.';
     } else {
       error.value = errorMessage;
     }
@@ -94,7 +102,6 @@ const handleTelegramAuth = async (user: Record<string, string>) => {
 };
 
 // Проверяем URL параметры на случай если Telegram использует редирект вместо callback
-const route = useRoute();
 onMounted(() => {
   // Проверяем URL параметры после монтирования
   if (route.query.id && route.query.hash && route.query.auth_date) {

@@ -10,23 +10,27 @@ import {
 
 import {
   getGrenadeTypeEmoji,
-  getGrenadeTypeName,
   getDifficultyEmoji,
   getSideEmoji,
   getLineEmoji,
   escapeMarkdown,
-  createKeyboard,
-  MAP_TYPES,
-  SIDE_TYPES,
-  LINE_TYPES,
-  GRENADE_TYPES,
+  createKeyboardFromDB,
   getMapEmoji,
-  getMapName,
-  getLineName,
-  getDifficultyName,
-  getSideName,
-  DIFFICULTY_LEVELS,
 } from '@shared/config/constants';
+import {
+  MAP_EMOJIS,
+  SIDE_EMOJIS,
+  LINE_EMOJIS,
+  GRENADE_TYPE_EMOJIS,
+  DIFFICULTY_EMOJIS,
+} from '@shared/config/emojis';
+import {
+  getMaps,
+  getSides,
+  getLines,
+  getDifficulties,
+  getGrenadeTypes,
+} from '@shared/database';
 
 import { debounce } from 'lodash';
 
@@ -90,7 +94,7 @@ export const handleAddSmoke = async (msg: BotMessage) => {
   try {
     const maps = await getMaps();
     const message = `🗺 Choose a map to add smoke:`;
-    const keyboard = createKeyboard('addsmoke_map', Object.fromEntries(Object.entries(MAP_TYPES).filter(([key]) => key !== 'all')));
+    const keyboard = createKeyboardFromDB('addsmoke_map', maps, MAP_EMOJIS, false);
 
     chatStates.set(chatId, {
       chatId,
@@ -118,7 +122,7 @@ export const handleDeleteSmoke = async (msg: BotMessage) => {
 
   try {
     const maps = await getMaps();
-    const keyboard = createKeyboard('deletesmoke_map', MAP_TYPES);
+    const keyboard = createKeyboardFromDB('deletesmoke_map', maps, MAP_EMOJIS, true);
     const mapsMessage = 'Choose a map to delete smoke:';
 
     deleteStates.set(chatId, {
@@ -687,7 +691,8 @@ export const handleAddSmokeMapSelection = async (callbackQuery: BotCallbackQuery
 
   state.selectedMap = selectedMap;
 
-  const keyboard = createKeyboard('addsmoke_side', SIDE_TYPES);
+    const sides = await getSides();
+    const keyboard = createKeyboardFromDB('addsmoke_side', sides, SIDE_EMOJIS, true);
   const message = `🔴🔵 Choose a side
 
 Info:
@@ -717,7 +722,8 @@ export const handleAddSmokeSideSelection = async (callbackQuery: BotCallbackQuer
 
   state.side = side;
 
-  const keyboard = createKeyboard('addsmoke_line', LINE_TYPES);
+    const lines = await getLines();
+    const keyboard = createKeyboardFromDB('addsmoke_line', lines, LINE_EMOJIS, true);
   const message = `Choose a line
 
 Info:
@@ -747,7 +753,8 @@ export const handleAddSmokeLineSelection = async (callbackQuery: BotCallbackQuer
   }
 
   state.line = line;
-  const keyboard = createKeyboard('addsmoke_grenade', GRENADE_TYPES);
+    const grenadeTypes = await getGrenadeTypes();
+    const keyboard = createKeyboardFromDB('addsmoke_grenade', grenadeTypes, GRENADE_TYPE_EMOJIS, true);
   const message = `Choose a grenade type
 
 Info:
@@ -778,7 +785,8 @@ export const handleAddSmokeGrenadeSelection = async (callbackQuery: BotCallbackQ
   }
 
   state.grenadeType = grenadeType;
-  const keyboard = createKeyboard('addsmoke_difficulty', DIFFICULTY_LEVELS);
+    const difficulties = await getDifficulties();
+    const keyboard = createKeyboardFromDB('addsmoke_difficulty', difficulties, DIFFICULTY_EMOJIS, true);
 
   const message = `Selected:
 ${getMapEmoji(state.selectedMap.name)} Map: ${getMapName(state.selectedMap.name)}

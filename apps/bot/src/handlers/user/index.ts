@@ -10,27 +10,29 @@ import {
   getSmokeMedia,
   getSmokeById,
   getAllSmokes,
+  getMaps,
+  getSides,
+  getLines,
+  getDifficulties,
+  getGrenadeTypes,
 } from '@shared/database';
 
 import {
   getGrenadeTypeEmoji,
-  getGrenadeTypeName,
-  createKeyboard,
   getDifficultyEmoji,
-  getDifficultyName,
   getSideEmoji,
   getLineEmoji,
-  getSideName,
-  getLineName,
-  getMapName,
   getMapEmoji,
   escapeMarkdown,
-  MAP_TYPES,
-  SIDE_TYPES,
-  GRENADE_TYPES,
-  LINE_TYPES,
-  DIFFICULTY_LEVELS,
+  createKeyboardFromDB,
 } from '@shared/config/constants';
+import {
+  MAP_EMOJIS,
+  SIDE_EMOJIS,
+  LINE_EMOJIS,
+  GRENADE_TYPE_EMOJIS,
+  DIFFICULTY_EMOJIS,
+} from '@shared/config/emojis';
 
 import {
   isMapKey,
@@ -173,15 +175,16 @@ export const handleMaps = async (context: BotMessage | BotCallbackQuery) => {
       }
     });
 
+    const maps = await getMaps();
     const message = `🗺 *Available maps:*
 
 *Filters:*
-${getMapEmoji('all') || '📋'} Map: ${getMapName('all') || 'All maps'}
-${getGrenadeTypeEmoji('all')} Grenade type: ${getGrenadeTypeName('all')}
-${getLineEmoji('all')} Line: ${getLineName('all')}
-${getDifficultyEmoji('all')} Difficulty: ${getDifficultyName('all')}`;
+${getMapEmoji('all') || '📋'} Map: All maps
+${getGrenadeTypeEmoji('all')} Grenade type: All types
+${getLineEmoji('all')} Line: All lines
+${getDifficultyEmoji('all')} Difficulty: All difficulties`;
 
-    const keyboard = createKeyboard('map', MAP_TYPES);
+    const keyboard = createKeyboardFromDB('map', maps, MAP_EMOJIS, true);
     bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     const fallbackMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -206,18 +209,14 @@ export const handleMapCallback = async (callbackQuery: BotCallbackQuery, mapName
     }
 
     if (!isMapKey(mapName)) {
+      const maps = await getMaps();
+      const map = maps.find(m => m.name === mapName);
       const errorMessage = `
-        ❌ *Invalid map name:* ${getMapName(mapName) ?? mapName}
+        ❌ *Invalid map name:* ${map?.display_name ?? mapName}
 
         *Available maps:*
         - all - All maps
-        - dust2 - Dust 2
-        - mirage - Mirage
-        - inferno - Inferno
-        - overpass - Overpass
-        - nuke - Nuke
-        - ancient - Ancient
-        - vertigo - Vertigo
+        ${maps.map(m => `- ${m.name} - ${m.display_name}`).join('\n')}
 
         *Usage:* /smokes dust2 `;
       bot.sendMessage(chatId, errorMessage, { parse_mode: 'Markdown' });
@@ -229,24 +228,29 @@ export const handleMapCallback = async (callbackQuery: BotCallbackQuery, mapName
       : await getSmokesByMap(mapName);
 
     if (list.length === 0) {
-      const noSmokesMessage = `❌ *No grenades found for:* ${getMapName(mapName)}
+      const maps = await getMaps();
+      const map = maps.find(m => m.name === mapName);
+      const noSmokesMessage = `❌ *No grenades found for:* ${map?.display_name ?? mapName}
       *Try another map*`;
       bot.sendMessage(chatId, noSmokesMessage, { parse_mode: 'Markdown' });
       return;
     }
 
     state.filterParams.mapName = mapName;
+    const maps = await getMaps();
+    const sides = await getSides();
+    const map = maps.find(m => m.name === mapName);
 
     const message = `🔴🔵 Choose side:
 
 *Filters:*
-${getMapEmoji(mapName)} Map: ${getMapName(mapName)}
-${getSideEmoji('all')} Side: ${getSideName('all')}
-${getGrenadeTypeEmoji('all')} Grenade type: ${getGrenadeTypeName('all')}
-${getLineEmoji('all')} Line: ${getLineName('all')}
-${getDifficultyEmoji('all')} Difficulty: ${getDifficultyName('all')}`;
+${getMapEmoji(mapName)} Map: ${map?.display_name ?? mapName}
+${getSideEmoji('all')} Side: All sides
+${getGrenadeTypeEmoji('all')} Grenade type: All types
+${getLineEmoji('all')} Line: All lines
+${getDifficultyEmoji('all')} Difficulty: All difficulties`;
 
-    const keyboard = createKeyboard('side', SIDE_TYPES);
+    const keyboard = createKeyboardFromDB('side', sides, SIDE_EMOJIS, true);
     bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     console.error('handleMapCallback error:', error);
@@ -278,16 +282,21 @@ export const handleSideCallback = async (callbackQuery: BotCallbackQuery, side: 
     }
 
     state.filterParams.side = resolvedSide;
+    const maps = await getMaps();
+    const sidesData = await getSides();
+    const lines = await getLines();
+    const map = maps.find(m => m.name === state.filterParams.mapName);
+    const sideData = sidesData.find(s => s.name === state.filterParams.side);
 
     const message = `🗺 *Choose a grenade type:*
 
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${getDifficultyName(state.filterParams.difficulty)}`;
+${getMapEmoji(state.filterParams.mapName)} Map: ${map?.display_name ?? state.filterParams.mapName}
+${getSideEmoji(state.filterParams.side)} Side: ${sideData?.display_name ?? state.filterParams.side}
+${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: All types
+${getLineEmoji(state.filterParams.line)} Line: All lines
+${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: All difficulties`;
 
-    const keyboard = createKeyboard('line', LINE_TYPES);
+    const keyboard = createKeyboardFromDB('line', lines, LINE_EMOJIS, true);
     bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     console.error('handleSideCallback error:', error);
@@ -317,16 +326,24 @@ export const handleGrenadeTypeCallback = async (callbackQuery: BotCallbackQuery,
     }
 
     state.filterParams.grenadeType = grenadeType;
+    const maps = await getMaps();
+    const sides = await getSides();
+    const grenadeTypes = await getGrenadeTypes();
+    const linesData = await getLines();
+    const map = maps.find(m => m.name === state.filterParams.mapName);
+    const side = sides.find(s => s.name === state.filterParams.side);
+    const grenadeTypeObj = grenadeTypes.find(gt => gt.name === state.filterParams.grenadeType);
+    const lineData = linesData.find(l => l.name === state.filterParams.line);
 
     const message = `📍 *Choose a line for:*
 
-  ${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-  ${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-  ${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-  ${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-  ${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${getDifficultyName(state.filterParams.difficulty)}`;
+  ${getMapEmoji(state.filterParams.mapName)} Map: ${map?.display_name ?? state.filterParams.mapName}
+  ${getSideEmoji(state.filterParams.side)} Side: ${side?.display_name ?? state.filterParams.side}
+  ${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${grenadeTypeObj?.display_name ?? state.filterParams.grenadeType}
+  ${getLineEmoji(state.filterParams.line)} Line: ${lineData?.display_name ?? state.filterParams.line ?? 'All'}
+  ${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: All difficulties`;
 
-    const keyboard = createKeyboard('difficulty', DIFFICULTY_LEVELS);
+    const keyboard = createKeyboardFromDB('difficulty', await getDifficulties(), DIFFICULTY_EMOJIS, true);
     bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     console.error('handleGrenadeTypeCallback error:', error);
@@ -356,16 +373,23 @@ export const handleLineCallback = async (callbackQuery: BotCallbackQuery, line: 
     }
     state.filterParams.line = line;
 
+    const grenadeTypes = await getGrenadeTypes();
+    const maps = await getMaps();
+    const sides = await getSides();
+    const linesData = await getLines();
+    const map = maps.find(m => m.name === state.filterParams.mapName);
+    const side = sides.find(s => s.name === state.filterParams.side);
+    const lineData = linesData.find(l => l.name === state.filterParams.line);
     const message = `🎯 Choose difficulty for:
 
 *Filters:*
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${getDifficultyName(state.filterParams.difficulty)}`;
+${getMapEmoji(state.filterParams.mapName)} Map: ${map?.display_name ?? state.filterParams.mapName}
+${getSideEmoji(state.filterParams.side)} Side: ${side?.display_name ?? state.filterParams.side}
+${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: All types
+${getLineEmoji(state.filterParams.line)} Line: ${lineData?.display_name ?? state.filterParams.line ?? 'All'}
+${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: All difficulties`;
 
-    const keyboard = createKeyboard('grenade', GRENADE_TYPES);
+    const keyboard = createKeyboardFromDB('grenade', grenadeTypes, GRENADE_TYPE_EMOJIS, true);
     bot.sendMessage(chatId, message, { parse_mode: 'Markdown', reply_markup: keyboard });
   } catch (error) {
     console.error('Error in handleLineCallback:', error);
@@ -413,18 +437,22 @@ export const handleSmokeDetailsCallback = async (callbackQuery: BotCallbackQuery
     }
 
     const mediaFiles = await getSmokeMedia(smoke.id);
+    const sides = await getSides();
+    const lines = await getLines();
+    const grenadeTypes = await getGrenadeTypes();
+    const difficulties = await getDifficulties();
 
-    const mapName = getMapName(smoke.map_name) ?? smoke.map_display_name;
+    const mapName = smoke.map_display_name;
     const mapEmoji = getMapEmoji(smoke.map_name) ?? '🗺';
     const grenadeTypeEmoji = getGrenadeTypeEmoji(smoke.grenade_type);
-    const grenadeTypeName = getGrenadeTypeName(smoke.grenade_type);
-    const sideName = getSideName(smoke.side) ?? 'Side';
+    const grenadeTypeName = grenadeTypes.find(gt => gt.name === smoke.grenade_type)?.display_name ?? smoke.grenade_type;
+    const sideName = sides.find(s => s.name === smoke.side)?.display_name ?? smoke.side;
     const sideEmoji = getSideEmoji(smoke.side) ?? '🎯';
     const rawLine = smoke.line ?? 'all';
     const lineEmoji = getLineEmoji(rawLine) ?? '📍';
-    const lineName = getLineName(rawLine) ?? 'Line';
+    const lineName = lines.find(l => l.name === rawLine)?.display_name ?? rawLine;
     const difficultyEmoji = getDifficultyEmoji(smoke.difficulty);
-    const difficultyName = getDifficultyName(smoke.difficulty);
+    const difficultyName = difficulties.find(d => d.name === smoke.difficulty)?.display_name ?? smoke.difficulty;
 
     const message = `[${smoke.name} (ID: ${smoke.id})]
 
@@ -491,15 +519,25 @@ export const showFilteredResults = async (callbackQuery: BotCallbackQuery, state
   }
 
   state.smokes = filteredList;
+  const maps = await getMaps();
+  const sides = await getSides();
+  const lines = await getLines();
+  const grenadeTypes = await getGrenadeTypes();
+  const difficulties = await getDifficulties();
+  const map = maps.find(m => m.name === state.filterParams.mapName);
+  const side = sides.find(s => s.name === state.filterParams.side);
+  const lineData = lines.find(l => l.name === state.filterParams.line);
+  const grenadeType = grenadeTypes.find(gt => gt.name === state.filterParams.grenadeType);
+  const difficulty = difficulties.find(d => d.name === state.filterParams.difficulty);
 
   const message = `*Results:*
 
 *Filters:*
-${getMapEmoji(state.filterParams.mapName)} Map: ${getMapName(state.filterParams.mapName)}
-${getSideEmoji(state.filterParams.side)} Side: ${getSideName(state.filterParams.side)}
-${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${getGrenadeTypeName(state.filterParams.grenadeType)}
-${getLineEmoji(state.filterParams.line)} Line: ${getLineName(state.filterParams.line)}
-${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${getDifficultyName(state.filterParams.difficulty)}`;
+${getMapEmoji(state.filterParams.mapName)} Map: ${map?.display_name ?? state.filterParams.mapName}
+${getSideEmoji(state.filterParams.side)} Side: ${side?.display_name ?? state.filterParams.side}
+${getGrenadeTypeEmoji(state.filterParams.grenadeType)} Grenade type: ${grenadeType?.display_name ?? state.filterParams.grenadeType}
+${getLineEmoji(state.filterParams.line)} Line: ${lineData?.display_name ?? state.filterParams.line ?? 'All'}
+${getDifficultyEmoji(state.filterParams.difficulty)} Difficulty: ${difficulty?.display_name ?? state.filterParams.difficulty}`;
 
   const keyboard = {
     inline_keyboard: filteredList.map((item, index) => [{
@@ -534,16 +572,18 @@ export const handleSmokeSelection = async (msg: BotMessage) => {
 
   try {
     const mediaFiles = await getSmokeMedia(smoke.id);
+    const sides = await getSides();
+    const lines = await getLines();
     const side = getSideEmoji(smoke.side) ?? '';
     const lineEmoji = getLineEmoji(smoke.line ?? 'all') ?? '';
 
     const difficultyIcon = getDifficultyEmoji(smoke.difficulty);
     let smokeText = `[${difficultyIcon} ${escapeMarkdown(smoke.name)}]\n\n`;
 
-    const sideName = escapeMarkdown(getSideName(smoke.side) ?? '');
-    const lineName = escapeMarkdown(getLineName(smoke.line ?? 'all') ?? '');
+    const sideName = escapeMarkdown(sides.find(s => s.name === smoke.side)?.display_name ?? smoke.side);
+    const lineName = escapeMarkdown(lines.find(l => l.name === (smoke.line ?? 'all'))?.display_name ?? (smoke.line ?? 'all'));
 
-    smokeText += `💨 ${getMapName(smoke.map_name)} - ${side}${sideName} - ${lineEmoji}${lineName}:\n\n`;
+    smokeText += `💨 ${smoke.map_display_name} - ${side}${sideName} - ${lineEmoji}${lineName}:\n\n`;
     smokeText += `*Instructions:*\n${escapeMarkdown(smoke.lineup_instructions ?? '')}`;
 
     if (mediaFiles.length > 0) {
@@ -570,12 +610,15 @@ export const handleSmokeSelection = async (msg: BotMessage) => {
   } catch (error) {
     console.error(`Error sending smoke ${smoke.name}:`, error);
 
+    const sides = await getSides();
+    const lines = await getLines();
     const fallbackLineEmoji = getLineEmoji(smoke.line ?? 'all') ?? '';
-    const fallbackLineName = getLineName(smoke.line ?? 'all') ?? '';
+    const fallbackLineName = lines.find(l => l.name === (smoke.line ?? 'all'))?.display_name ?? (smoke.line ?? 'all');
+    const fallbackSideName = sides.find(s => s.name === smoke.side)?.display_name ?? smoke.side;
 
     const fallbackText = [
       `[${getGrenadeTypeEmoji(smoke.grenade_type)} ${getDifficultyEmoji(smoke.difficulty)} ${smoke.name}]`,
-      `${getGrenadeTypeEmoji(smoke.grenade_type)} ${getDifficultyEmoji(smoke.difficulty)} ${smoke.map_display_name} - ${getSideEmoji(smoke.side)}${getSideName(smoke.side)} - ${fallbackLineEmoji}${fallbackLineName}:`,
+      `${getGrenadeTypeEmoji(smoke.grenade_type)} ${getDifficultyEmoji(smoke.difficulty)} ${smoke.map_display_name} - ${getSideEmoji(smoke.side)}${fallbackSideName} - ${fallbackLineEmoji}${fallbackLineName}:`,
       `*Instructions:*\n${escapeMarkdown(smoke.lineup_instructions)}`
     ].join('');
 

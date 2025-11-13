@@ -77,6 +77,17 @@ export default defineEventHandler(async (event) => {
     console.warn('Telegram API verification failed, but hash is valid:', error);
   }
 
+  // Проверяем, является ли пользователь админом
+  const { isAdmin } = await import('../../utils/auth');
+  const userId = body.id;
+
+  if (!isAdmin(userId)) {
+    throw createError({
+      statusCode: 403,
+      message: 'Access denied. Admin privileges required.',
+    });
+  }
+
   // Создаем сессию
   const session = {
     userId: body.id,

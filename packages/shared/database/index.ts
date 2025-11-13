@@ -19,6 +19,7 @@ import {
   getSmokesByMap,
   addSmoke,
   saveSmokeImage,
+  saveSmokeMediaBatch,
   getSmokeMedia,
   deleteSmoke,
   getSmokeById,
@@ -31,6 +32,11 @@ import {
   getLineUsageCount,
   getGrenadeTypeUsageCount,
   getReferenceTablesCounts,
+  isValidMapName,
+  isValidSideName,
+  isValidDifficultyName,
+  isValidLineName,
+  isValidGrenadeTypeName,
 } from './database';
 
 export {
@@ -53,6 +59,7 @@ export {
   getSmokesByMap,
   addSmoke,
   saveSmokeImage,
+  saveSmokeMediaBatch,
   getSmokeMedia,
   deleteSmoke,
   getSmokeById,
@@ -65,4 +72,9 @@ export {
   getLineUsageCount,
   getGrenadeTypeUsageCount,
   getReferenceTablesCounts,
+  isValidMapName,
+  isValidSideName,
+  isValidDifficultyName,
+  isValidLineName,
+  isValidGrenadeTypeName,
 };

@@ -74,8 +74,22 @@ export const useAuth = () => {
       }
 
       return { success: false, error: 'Login failed' };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+    } catch (error: any) {
+      let errorMessage = 'Login failed';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error?.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      // Специальная обработка ошибки доступа
+      if (error?.status === 403 || error?.statusCode === 403) {
+        errorMessage = 'Access denied. Admin privileges required.';
+      }
+
       return { success: false, error: errorMessage };
     }
   };

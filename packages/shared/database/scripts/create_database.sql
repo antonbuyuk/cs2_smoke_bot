@@ -70,6 +70,7 @@ CREATE TABLE granade_media (
   file_id TEXT NOT NULL,
   media_type TEXT NOT NULL CHECK (media_type IN ('photo', 'video')),
   caption TEXT,
+  sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
