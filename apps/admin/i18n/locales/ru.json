@@ -1,0 +1,124 @@
+{
+  "nav": {
+    "grenades": "Гранаты",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "home": "Главная"
+  },
+  "pages": {
+    "grenades": {
+      "title": "Гранаты",
+      "description": "Просмотри хранящиеся гранаты и фильтруй по карте.",
+      "allMaps": "Все карты",
+      "map": "Карта",
+      "loading": "Загружаем данные…",
+      "error": "Не удалось загрузить список гранат. Попробуйте обновить страницу.",
+      "notFound": "Гранаты не найдены для выбранных параметров.",
+      "more": "Подробнее",
+      "back": "Назад",
+      "add": "Добавить гранату",
+      "addForm": {
+        "title": "Добавить новую гранату",
+        "name": "Название",
+        "namePlaceholder": "Например: Smoke from CT spawn",
+        "map": "Карта",
+        "side": "Сторона",
+        "difficulty": "Сложность",
+        "line": "Линия",
+        "lineOptional": "Линия (опционально)",
+        "grenadeType": "Тип гранаты",
+        "instructions": "Инструкции по установке",
+        "instructionsPlaceholder": "Подробные инструкции по установке гранаты...",
+        "images": "Изображения",
+        "maxFiles": "максимум 10 файлов",
+        "dropFiles": "Перетащите файлы сюда",
+        "selectFiles": "выберите файлы",
+        "fileTypes": "Поддерживаются изображения (JPG, PNG, GIF) и видео (MP4, MOV, AVI, WEBM)",
+        "photo": "Фото",
+        "video": "Видео",
+        "coverImage": "Заглавное изображение",
+        "cancel": "Отмена",
+        "submit": "Добавить гранату",
+        "submitting": "Добавление...",
+        "uploading": "Загрузка файлов...",
+        "success": "Граната успешно добавлена!",
+        "error": "Ошибка при добавлении гранаты"
+      }
+    },
+    "settings": {
+      "title": "Настройки",
+      "subtitle": "Управление справочными таблицами",
+      "backToHome": "← Назад на главную",
+      "loading": "Загружаем данные…",
+      "error": "Не удалось загрузить статистику настроек",
+      "info": {
+        "title": "Информация",
+        "description": "Справочные таблицы используются для структурирования данных о гранатах. Вы можете добавлять, просматривать и удалять записи в каждой таблице.",
+        "important": "Важно:",
+        "warning": "При удалении записи, которая используется в других таблицах (например, карта, на которую ссылаются гранаты), операция будет заблокирована для сохранения целостности данных."
+      },
+      "tables": {
+        "maps": {
+          "name": "Maps",
+          "description": "Управление картами"
+        },
+        "sides": {
+          "name": "Sides",
+          "description": "Управление сторонами (T, CT)"
+        },
+        "difficulties": {
+          "name": "Difficulties",
+          "description": "Управление уровнями сложности"
+        },
+        "lines": {
+          "name": "Lines",
+          "description": "Управление линиями (Plant A, B, Mid)"
+        },
+        "grenadeTypes": {
+          "name": "Grenade Types",
+          "description": "Управление типами гранат"
+        }
+      }
+    },
+    "login": {
+      "title": "CS2 Bot Admin",
+      "subtitle": "Войдите через Telegram для доступа к панели управления",
+      "authorizing": "Авторизация...",
+      "loadingWidget": "Загрузка виджета...",
+      "terms": "Используя эту панель, вы соглашаетесь с условиями использования"
+    }
+  },
+  "components": {
+    "referenceTable": {
+      "add": "Добавить",
+      "back": "← Назад",
+      "name": "Name (Key)",
+      "displayName": "Display Name",
+      "namePlaceholder": "Lowercase letters, numbers, and underscores only (max 50 chars)",
+      "displayNamePlaceholder": "Human-readable name (max 100 chars)",
+      "required": "*",
+      "cancel": "Cancel",
+      "adding": "Adding...",
+      "delete": "Удалить",
+      "deleting": "Удаление...",
+      "notFound": "не найдены",
+      "total": "Всего"
+    },
+    "grenadeDetail": {
+      "back": "← Назад",
+      "loading": "Загрузка…",
+      "error": "Не удалось загрузить гранату",
+      "noMedia": "Медиа не прикреплены."
+    }
+  },
+  "common": {
+    "loading": "Загружаем данные…",
+    "error": "Ошибка",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "close": "Закрыть"
+  }
+}
+
