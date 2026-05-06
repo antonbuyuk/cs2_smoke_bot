@@ -12,6 +12,7 @@ import type {
   DifficultyRecord,
   LineRecord,
   GrenadeTypeRecord,
+  UserRecord,
 } from '../utils/types';
 import type {
   DifficultyKey,
@@ -93,6 +94,60 @@ const runMigrations = async (client: PoolClient) => {
       console.log('Added sort_order column to granade_media table');
     }
   }
+
+  // Колонка position_image_url для maps (картинка-схема карты)
+  const mapsExistsForMigration = await tableExists('maps');
+  if (mapsExistsForMigration) {
+    const positionImageExists = await columnExists(client, 'maps', 'position_image_url');
+    if (!positionImageExists) {
+      await client.query('ALTER TABLE maps ADD COLUMN position_image_url TEXT');
+      console.log('Added position_image_url column to maps table');
+    }
+  }
+
+  // Таблица пользователей
+  const usersExists = await tableExists('users');
+  if (!usersExists) {
+    await client.query(`
+      CREATE TABLE users (
+        telegram_id BIGINT PRIMARY KEY,
+        username    TEXT,
+        first_name  TEXT NOT NULL,
+        last_name   TEXT,
+        photo_url   TEXT,
+        role        TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+        created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query('CREATE INDEX idx_users_role ON users (role)');
+    console.log('Created users table');
+  }
+
+  // Колонки статуса и автора для гранат
+  const granadesExists = await tableExists('granades');
+  if (granadesExists) {
+    const statusExists = await columnExists(client, 'granades', 'status');
+    if (!statusExists) {
+      await client.query(`
+        ALTER TABLE granades
+        ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'
+          CHECK (status IN ('pending', 'approved', 'rejected'))
+      `);
+      await client.query('CREATE INDEX idx_granades_status ON granades (status)');
+      console.log('Added status column to granades table');
+    }
+
+    const createdByExists = await columnExists(client, 'granades', 'created_by');
+    if (!createdByExists) {
+      await client.query(`
+        ALTER TABLE granades
+        ADD COLUMN created_by BIGINT REFERENCES users(telegram_id) ON DELETE SET NULL
+      `);
+      await client.query('CREATE INDEX idx_granades_created_by ON granades (created_by)');
+      console.log('Added created_by column to granades table');
+    }
+  }
 };
 
 // Создание структуры базы данных
@@ -117,7 +172,8 @@ const createDatabaseStructure = async () => {
       CREATE TABLE maps (
         id SERIAL PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
-        display_name TEXT NOT NULL
+        display_name TEXT NOT NULL,
+        position_image_url TEXT
       )
     `);
 
@@ -329,6 +385,9 @@ interface SmokeRowDB {
   grenade_type_name: string;
   lineup_instructions: string;
   image_url: string | null;
+  cover_file_id?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_by: number | null;
 }
 
 const mapSmokeRowToPublic = (row: SmokeRowDB): SmokeWithMap => ({
@@ -343,6 +402,9 @@ const mapSmokeRowToPublic = (row: SmokeRowDB): SmokeWithMap => ({
   grenade_type: row.grenade_type_name as GrenadeTypeKey,
   map_name: row.map_name as MapKey,
   map_display_name: row.map_display_name,
+  cover_file_id: row.cover_file_id ?? null,
+  status: row.status ?? 'approved',
+  created_by: row.created_by ?? null,
 });
 
 const toNullable = <T>(value: T | undefined | null): T | null => value ?? null;
@@ -380,8 +442,40 @@ export const initDatabase = async (): Promise<void> => {
 };
 
 export const getMaps = async (): Promise<MapRecord[]> => {
-  const { rows } = await getPool().query<MapRecord>('SELECT id, name, display_name FROM maps ORDER BY display_name');
+  const { rows } = await getPool().query<MapRecord>(
+    'SELECT id, name, display_name, position_image_url FROM maps ORDER BY display_name'
+  );
   return rows;
+};
+
+export const getMapById = async (id: number): Promise<MapRecord | null> => {
+  const { rows } = await getPool().query<MapRecord>(
+    'SELECT id, name, display_name, position_image_url FROM maps WHERE id = $1',
+    [id]
+  );
+  return rows[0] ?? null;
+};
+
+export const setMapPositionImage = async (
+  id: number,
+  imageUrl: string | null
+): Promise<string | null> => {
+  return withTransaction(async (client) => {
+    const { rows: currentRows } = await client.query<{ position_image_url: string | null }>(
+      'SELECT position_image_url FROM maps WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+
+    if (currentRows.length === 0) {
+      throw new Error(`Карта не найдена: ${id}`);
+    }
+
+    const previousUrl = currentRows[0]?.position_image_url ?? null;
+
+    await client.query('UPDATE maps SET position_image_url = $2 WHERE id = $1', [id, imageUrl]);
+
+    return previousUrl;
+  });
 };
 
 export const addMap = async (name: string, displayName: string): Promise<number> => {
@@ -629,113 +723,117 @@ export const deleteGrenadeType = async (id: number): Promise<number> => {
   return result.rowCount ?? 0;
 };
 
+const SMOKE_SELECT_FIELDS = `
+  g.id,
+  g.name,
+  g.display_name,
+  g.map_id,
+  m.name AS map_name,
+  m.display_name AS map_display_name,
+  g.difficulty_id,
+  d.name AS difficulty_name,
+  g.side_id,
+  si.name AS side_name,
+  g.line_id,
+  l.name AS line_name,
+  g.grenade_type_id,
+  gt.name AS grenade_type_name,
+  g.lineup_instructions,
+  g.image_url,
+  g.status,
+  g.created_by,
+  cm.file_id AS cover_file_id
+`;
+
+const SMOKE_JOINS = `
+  FROM granades g
+  JOIN maps m ON g.map_id = m.id
+  JOIN difficulties d ON g.difficulty_id = d.id
+  JOIN sides si ON g.side_id = si.id
+  LEFT JOIN lines l ON g.line_id = l.id
+  JOIN grenade_types gt ON g.grenade_type_id = gt.id
+  LEFT JOIN LATERAL (
+    SELECT file_id
+    FROM granade_media
+    WHERE granade_id = g.id AND media_type = 'photo'
+    ORDER BY sort_order ASC, id ASC
+    LIMIT 1
+  ) cm ON true
+`;
+
 export const getSmokesByMap = async (mapName: RealMapKey): Promise<SmokeWithMap[]> => {
   const { rows } = await getPool().query<SmokeRowDB>(
-    `
-      SELECT
-        g.id,
-        g.name,
-        g.display_name,
-        g.map_id,
-        m.name AS map_name,
-        m.display_name AS map_display_name,
-        g.difficulty_id,
-        d.name AS difficulty_name,
-        g.side_id,
-        si.name AS side_name,
-        g.line_id,
-        l.name AS line_name,
-        g.grenade_type_id,
-        gt.name AS grenade_type_name,
-        g.lineup_instructions,
-        g.image_url
-      FROM granades g
-      JOIN maps m ON g.map_id = m.id
-      JOIN difficulties d ON g.difficulty_id = d.id
-      JOIN sides si ON g.side_id = si.id
-      LEFT JOIN lines l ON g.line_id = l.id
-      JOIN grenade_types gt ON g.grenade_type_id = gt.id
-      WHERE m.name = $1
-      ORDER BY g.created_at DESC
-    `,
+    `SELECT ${SMOKE_SELECT_FIELDS} ${SMOKE_JOINS} WHERE m.name = $1 AND g.status = 'approved' ORDER BY g.created_at DESC`,
     [mapName]
   );
-
   return rows.map(mapSmokeRowToPublic);
 };
 
 export const getAllSmokes = async (): Promise<SmokeWithMap[]> => {
   const { rows } = await getPool().query<SmokeRowDB>(
-    `
-      SELECT
-        g.id,
-        g.name,
-        g.display_name,
-        g.map_id,
-        m.name AS map_name,
-        m.display_name AS map_display_name,
-        g.difficulty_id,
-        d.name AS difficulty_name,
-        g.side_id,
-        si.name AS side_name,
-        g.line_id,
-        l.name AS line_name,
-        g.grenade_type_id,
-        gt.name AS grenade_type_name,
-        g.lineup_instructions,
-        g.image_url
-      FROM granades g
-      JOIN maps m ON g.map_id = m.id
-      JOIN difficulties d ON g.difficulty_id = d.id
-      JOIN sides si ON g.side_id = si.id
-      LEFT JOIN lines l ON g.line_id = l.id
-      JOIN grenade_types gt ON g.grenade_type_id = gt.id
-      ORDER BY g.created_at DESC
-    `
+    `SELECT ${SMOKE_SELECT_FIELDS} ${SMOKE_JOINS} WHERE g.status = 'approved' ORDER BY g.created_at DESC`
   );
-
   return rows.map(mapSmokeRowToPublic);
 };
 
-export const addSmoke = async (mapName: string, smokeData: NewSmokeInput): Promise<number> => {
+export const getPendingSmokes = async (): Promise<SmokeWithMap[]> => {
+  const { rows } = await getPool().query<SmokeRowDB>(
+    `SELECT ${SMOKE_SELECT_FIELDS} ${SMOKE_JOINS} WHERE g.status = 'pending' ORDER BY g.created_at DESC`
+  );
+  return rows.map(mapSmokeRowToPublic);
+};
+
+export const setSmokeStatus = async (smokeId: number, status: 'approved' | 'rejected'): Promise<void> => {
+  await getPool().query('UPDATE granades SET status = $2 WHERE id = $1', [smokeId, status]);
+};
+
+export const addSmokeWithStatus = async (
+  mapName: string,
+  smokeData: NewSmokeInput,
+  createdBy: number | null,
+  status: 'pending' | 'approved'
+): Promise<number> => {
   return withTransaction(async (client) => {
     try {
-      console.log('Adding smoke with data:', { mapName, smokeData });
       const mapId = await resolveMapId(client, mapName);
       const difficultyId = await resolveDifficultyId(client, smokeData.difficulty);
       const sideId = await resolveSideId(client, smokeData.side);
       const lineId = await resolveLineId(client, smokeData.line);
       const grenadeTypeId = await resolveGrenadeTypeId(client, smokeData.grenadeType ?? 'smoke');
-
-      console.log('Resolved IDs:', { mapId, difficultyId, sideId, lineId, grenadeTypeId });
+      const createdBySafe =
+        typeof createdBy === 'number' && Number.isFinite(createdBy) && createdBy > 0 ? createdBy : null;
 
       const insertResult = await client.query<{ id: number }>(
         `
-          INSERT INTO granades (map_id, name, display_name, lineup_instructions, image_url, difficulty_id, side_id, line_id, grenade_type_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          INSERT INTO granades (map_id, name, display_name, lineup_instructions, image_url, difficulty_id, side_id, line_id, grenade_type_id, status, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING id
         `,
         [
           mapId,
           smokeData.name,
-          null, // display_name can be null
+          null,
           smokeData.lineup_instructions,
           toNullable(smokeData.imageUrl),
           difficultyId,
           sideId,
           lineId,
           grenadeTypeId,
+          status,
+          createdBySafe,
         ]
       );
 
-      const newId = insertResult.rows[0]?.id ?? 0;
-      console.log('Created smoke with ID:', newId);
-      return newId;
+      return insertResult.rows[0]?.id ?? 0;
     } catch (error) {
-      console.error('Error in addSmoke:', error);
+      console.error('Error in addSmokeWithStatus:', error);
       throw error;
     }
   });
+};
+
+export const addSmoke = async (mapName: string, smokeData: NewSmokeInput): Promise<number> => {
+  return addSmokeWithStatus(mapName, smokeData, null, 'approved');
 };
 
 export const saveSmokeImage = async (
@@ -808,33 +906,7 @@ export const deleteSmoke = async (smokeId: number): Promise<number> => {
 
 export const getSmokeById = async (smokeId: number): Promise<SmokeWithMap | undefined> => {
   const { rows } = await getPool().query<SmokeRowDB>(
-    `
-      SELECT
-        g.id,
-        g.name,
-        g.display_name,
-        g.map_id,
-        m.name AS map_name,
-        m.display_name AS map_display_name,
-        g.difficulty_id,
-        d.name AS difficulty_name,
-        g.side_id,
-        si.name AS side_name,
-        g.line_id,
-        l.name AS line_name,
-        g.grenade_type_id,
-        gt.name AS grenade_type_name,
-        g.lineup_instructions,
-        g.image_url
-      FROM granades g
-      JOIN maps m ON g.map_id = m.id
-      JOIN difficulties d ON g.difficulty_id = d.id
-      JOIN sides si ON g.side_id = si.id
-      LEFT JOIN lines l ON g.line_id = l.id
-      JOIN grenade_types gt ON g.grenade_type_id = gt.id
-      WHERE g.id = $1
-      LIMIT 1
-    `,
+    `SELECT ${SMOKE_SELECT_FIELDS} ${SMOKE_JOINS} WHERE g.id = $1 LIMIT 1`,
     [smokeId]
   );
 
@@ -888,4 +960,61 @@ export const isValidGrenadeTypeName = async (grenadeTypeName: string): Promise<b
     [grenadeTypeName]
   );
   return Number.parseInt(rows[0]?.count ?? '0', 10) > 0;
+};
+
+// User management functions
+export const upsertUser = async (params: {
+  telegramId: number;
+  username?: string | null;
+  firstName: string;
+  lastName?: string | null;
+  photoUrl?: string | null;
+}): Promise<{ telegramId: number; role: 'admin' | 'user' }> => {
+  const { rows } = await getPool().query<{ telegram_id: number; role: 'admin' | 'user' }>(
+    `
+      INSERT INTO users (telegram_id, username, first_name, last_name, photo_url)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (telegram_id) DO UPDATE SET
+        username = EXCLUDED.username,
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
+        photo_url = EXCLUDED.photo_url,
+        updated_at = NOW()
+      RETURNING telegram_id, role
+    `,
+    [params.telegramId, params.username ?? null, params.firstName, params.lastName ?? null, params.photoUrl ?? null]
+  );
+  const row = rows[0];
+  if (!row) throw new Error('Failed to upsert user');
+  return { telegramId: row.telegram_id, role: row.role };
+};
+
+export const setUserRole = async (telegramId: number, role: 'admin' | 'user'): Promise<void> => {
+  await getPool().query(
+    'UPDATE users SET role = $2, updated_at = NOW() WHERE telegram_id = $1',
+    [telegramId, role]
+  );
+};
+
+export const getAllUsers = async (): Promise<UserRecord[]> => {
+  const { rows } = await getPool().query<{
+    telegram_id: number;
+    username: string | null;
+    first_name: string;
+    last_name: string | null;
+    photo_url: string | null;
+    role: 'admin' | 'user';
+    created_at: string;
+  }>(
+    'SELECT telegram_id, username, first_name, last_name, photo_url, role, created_at FROM users ORDER BY created_at DESC'
+  );
+  return rows.map((r) => ({
+    telegramId: r.telegram_id,
+    username: r.username,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    photoUrl: r.photo_url,
+    role: r.role,
+    createdAt: r.created_at,
+  }));
 };

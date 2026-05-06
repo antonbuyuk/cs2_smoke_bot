@@ -1,35 +1,47 @@
 <template>
-  <div class="bg-slate-950 flex items-center justify-center px-4">
-    <div class="w-full max-w-md">
-      <div class="bg-slate-900 rounded-lg border border-slate-800 p-8 shadow-xl">
-        <div class="text-center mb-8">
-          <h1 class="text-2xl font-bold text-slate-50 mb-2">CS2 Bot Admin</h1>
-          <p class="text-slate-400 text-sm">Войдите через Telegram для доступа к панели управления</p>
-        </div>
+  <div class="login-card">
+    <!-- Brand -->
+    <div class="brand">
+      <span class="brand-mark">N</span>
+      <span class="brand-text">CS2 Bot <span>Admin</span></span>
+    </div>
 
-        <div v-if="configError" class="mb-6 p-4 bg-red-950/50 border border-red-800 rounded-lg">
-          <p class="text-red-300 text-sm">{{ configError }}</p>
-        </div>
+    <!-- Header -->
+    <div class="header-block">
+      <h1>Авторизация</h1>
+      <p>Войдите через Telegram для доступа к панели управления</p>
+    </div>
 
-        <div v-else-if="error" class="mb-6 p-4 bg-red-950/50 border border-red-800 rounded-lg">
-          <p class="text-red-300 text-sm">{{ error }}</p>
+    <!-- Telegram button / loading -->
+    <div class="tg-section">
+      <template v-if="!isLoggingIn && !configError">
+        <div v-if="!widgetLoaded" class="loading-text">
+          Загрузка виджета
+          <span class="dot-pulse"><span /><span /><span /></span>
         </div>
-
-        <div v-if="isLoggingIn" class="mb-6 text-center">
-          <p class="text-slate-400 text-sm">Авторизация...</p>
-        </div>
-
-        <div v-if="!configError && !error" ref="widgetContainer" class="flex justify-center min-h-[60px]">
-          <div v-if="!widgetLoaded" class="text-slate-400 text-sm">Загрузка виджета...</div>
-        </div>
-
-        <div class="mt-6 text-center">
-          <p class="text-xs text-slate-500">
-            Используя эту панель, вы соглашаетесь с условиями использования
-          </p>
-        </div>
+        <div ref="widgetContainer" class="widget-container" />
+      </template>
+      <div v-else-if="isLoggingIn" class="loading-text">
+        Авторизация
+        <span class="dot-pulse"><span /><span /><span /></span>
       </div>
     </div>
+
+    <!-- Errors -->
+    <div v-if="configError" class="error-block">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      {{ configError }}
+    </div>
+    <div v-else-if="error" class="error-block">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      {{ error }}
+    </div>
+
+    <div class="divider" />
+
+    <p class="footnote">
+      Используя эту панель, вы соглашаетесь с условиями использования
+    </p>
   </div>
 </template>
 
@@ -259,3 +271,168 @@ onMounted(() => {
   }
 });
 </script>
+
+<style lang="scss">
+@use '~/assets/styles/mixins' as *;
+
+html, body {
+  height: 100%;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 20%, var(--accent-soft), transparent 60%),
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--bg-0);
+}
+
+body {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  min-height: 100vh;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  background: var(--bg-1);
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  padding: 48px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5);
+  position: relative;
+  overflow: hidden;
+
+  @include respond-to(480) { padding: 36px 24px 28px; border-radius: 16px; }
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    &-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), oklch(0.66 0.18 200));
+      display: grid;
+      place-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 17px;
+      color: var(--accent-ink);
+      box-shadow: 0 0 24px var(--accent-glow);
+    }
+
+    &-text {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      color: var(--text-1);
+
+      span { color: var(--accent); }
+    }
+  }
+
+  .header-block {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin: 0;
+
+      @include respond-to(480) { font-size: 20px; }
+    }
+
+    p {
+      color: var(--text-2);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 32ch;
+      margin: 0 auto;
+    }
+  }
+
+  .tg-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .widget-container {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    min-height: 60px;
+  }
+
+  .loading-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot-pulse {
+    display: inline-flex;
+    gap: 4px;
+
+    span {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-3);
+      animation: pulse-dot 1.2s ease-in-out infinite;
+      display: block;
+
+      &:nth-child(2) { animation-delay: 0.15s; }
+      &:nth-child(3) { animation-delay: 0.3s; }
+    }
+  }
+
+  .error-block {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--red-soft);
+    border: 1px solid var(--red);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-1);
+    line-height: 1.45;
+
+    svg { flex-shrink: 0; width: 18px; height: 18px; color: var(--red); }
+  }
+
+  .divider { width: 100%; height: 1px; background: var(--line); }
+
+  .footnote { font-size: 12px; color: var(--text-4); text-align: center; line-height: 1.5; margin: 0; }
+}
+
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40%            { opacity: 1;   transform: scale(1); }
+}
+</style>

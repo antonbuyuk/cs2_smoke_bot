@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:claude.ai)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(gunzip -c \"webfetch-1777560712533-po5814.bin\")",
+      "Bash(gunzip -c \"C:\\\\Users\\\\Anton Buyuk\\\\.claude\\\\projects\\\\C--Users-Anton-Buyuk-Documents-projects-cs2-bot\\\\9dc0c8b4-7dbb-42d5-b1e5-049fa6d615f5\\\\tool-results\\\\webfetch-1777560712533-po5814.bin\")",
+      "Bash(tar -xf /tmp/design_bundle.tar -C /tmp/)",
+      "Read(//tmp/cs-app/**)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(pkill -f \"nuxt dev\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('message',''\\)[:300]\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/)",
+      "Bash(curl -s http://localhost:3001/)",
+      "Bash(npx nuxi *)",
+      "Bash(curl -s http://localhost:3000/api/maps)",
+      "Bash(curl -s http://localhost:3002/api/grenades)",
+      "Bash(curl *)",
+      "Bash(gunzip)",
+      "Bash(tar -x -C /tmp/)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('C:/Users/Anton Buyuk/Documents/projects/cs2-bot/apps/admin/pages/grenades/index.vue', 'utf-8'\\); console.log\\('OK: grenades/index.vue'\\)\")",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('C:/Users/Anton Buyuk/Documents/projects/cs2-bot/apps/admin/pages/grenades/[grenade].vue', 'utf-8'\\); console.log\\('OK: grenade detail'\\)\")",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('C:/Users/Anton Buyuk/Documents/projects/cs2-bot/apps/admin/pages/settings/index.vue', 'utf-8'\\); console.log\\('OK: settings'\\)\")",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('C:/Users/Anton Buyuk/Documents/projects/cs2-bot/apps/admin/components/ReferenceTable.vue', 'utf-8'\\); console.log\\('OK: ReferenceTable'\\)\")",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('C:/Users/Anton Buyuk/Documents/projects/cs2-bot/apps/admin/pages/login.vue', 'utf-8'\\); console.log\\('OK: login'\\)\")",
+      "Bash(grep -E \"\\\\.\\(ts|js|json|css|scss|config\\)$\")",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -30 \"{}\"')",
+      "Bash(npm install *)",
+      "Bash(git --no-pager diff -- \"../../packages/shared/utils/types/index.ts\")",
+      "Bash(git --no-pager show HEAD:packages/shared/utils/types/index.ts)",
+      "Bash(python3 *)",
+      "Bash(PYTHONIOENCODING=utf-8 python3 *)",
+      "Bash(git *)"
+    ]
+  }
+}

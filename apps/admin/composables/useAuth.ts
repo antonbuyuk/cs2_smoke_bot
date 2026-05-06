@@ -6,32 +6,32 @@ type User = {
   firstName: string;
   lastName?: string;
   photoUrl?: string;
+  role: 'admin' | 'user';
 };
 
 const user = ref<User | null>(null);
 const isLoading = ref(true);
 
-// Моковый пользователь для режима разработки
 const DEV_USER: User = {
   id: 'dev-user-1',
   username: 'devuser',
   firstName: 'Dev',
   lastName: 'User',
   photoUrl: undefined,
+  role: 'admin',
 };
 
 export const useAuth = () => {
   const config = useRuntimeConfig();
   const isAuthenticated = computed(() => user.value !== null);
+  const isAdmin = computed(() => user.value?.role === 'admin');
 
-  // В режиме разработки автоматически устанавливаем мокового пользователя при первом вызове
   if (config.public.developMode && !user.value && isLoading.value) {
     user.value = DEV_USER;
     isLoading.value = false;
   }
 
   const fetchUser = async () => {
-    // В режиме разработки сразу устанавливаем мокового пользователя
     if (config.public.developMode) {
       user.value = DEV_USER;
       isLoading.value = false;
@@ -43,8 +43,6 @@ export const useAuth = () => {
       const data = await $fetch<{ user: User }>('/api/auth/me');
       user.value = data.user;
     } catch (error: any) {
-      // Если получили 401, не устанавливаем user в null здесь,
-      // так как плагин уже обработает редирект
       if (error?.status === 401 || error?.statusCode === 401) {
         user.value = null;
         return;
@@ -56,7 +54,6 @@ export const useAuth = () => {
   };
 
   const login = async (authData: Record<string, string>) => {
-    // В режиме разработки сразу возвращаем успех
     if (config.public.developMode) {
       user.value = DEV_USER;
       return { success: true };
@@ -85,17 +82,11 @@ export const useAuth = () => {
         errorMessage = error.message;
       }
 
-      // Специальная обработка ошибки доступа
-      if (error?.status === 403 || error?.statusCode === 403) {
-        errorMessage = 'Access denied. Admin privileges required.';
-      }
-
       return { success: false, error: errorMessage };
     }
   };
 
   const logout = async () => {
-    // В режиме разработки просто очищаем пользователя
     if (config.public.developMode) {
       user.value = null;
       return;
@@ -115,10 +106,10 @@ export const useAuth = () => {
   return {
     user: computed(() => user.value),
     isAuthenticated,
+    isAdmin,
     isLoading: computed(() => isLoading.value),
     fetchUser,
     login,
     logout,
   };
 };
-

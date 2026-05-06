@@ -1,191 +1,98 @@
 <template>
-  <div class="bg-slate-950 text-slate-50">
-    <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <h1 class="text-xl font-semibold tracking-tight">{{ title }}</h1>
-        <div class="flex items-center gap-4">
-          <button
-            @click="showAddForm = true"
-            class="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-950"
-          >
-            + Добавить {{ itemName }}
-          </button>
-          <NuxtLink to="/settings" class="text-sm text-slate-400 hover:text-slate-200">
-            ← Назад
-          </NuxtLink>
-        </div>
+  <main class="page">
+    <NuxtLink class="back-link" to="/settings">← Back to Settings</NuxtLink>
+
+    <div class="page-head">
+      <h1>{{ title }}</h1>
+      <button class="btn-primary" @click="showAddForm = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add {{ itemName }}
+      </button>
+    </div>
+
+    <StateBox v-if="pending" type="loading" :title="`Loading ${itemNamePluralLowercase}...`" />
+    <StateBox v-else-if="error" type="error" :title="`Failed to load ${itemNamePluralLowercase}`" :description="error.statusMessage ?? error.message ?? `Could not load ${itemNamePluralLowercase}`" />
+    <StateBox v-else-if="items.length === 0" type="empty" :title="`${itemNamePlural} not found`" :description="`Add your first ${itemNameLowercase} to get started.`" />
+
+    <!-- Table -->
+    <template v-else>
+      <!-- Delete error -->
+      <div v-if="deleteError" class="msg msg-warning" style="margin-bottom:16px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        {{ deleteError }}
+        <button @click="clearDeleteError" style="margin-left:auto;background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;">×</button>
       </div>
-    </header>
 
-    <main class="mx-auto max-w-6xl px-6 py-8">
-      <!-- Форма добавления -->
-      <section
-        v-if="showAddForm"
-        class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-6"
-      >
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Добавить новый {{ itemName }}</h2>
-          <button
-            @click="closeAddForm"
-            class="text-slate-400 hover:text-slate-200"
-            type="button"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form @submit.prevent="handleAdd" class="space-y-4">
-          <div>
-            <label
-              :for="`${itemNameLowercase}-name`"
-              class="mb-2 block text-sm font-medium text-slate-300"
-            >
-              Название (ключ) <span class="text-slate-500">*</span>
-            </label>
-            <input
-              :id="`${itemNameLowercase}-name`"
-              v-model="newItem.name"
-              type="text"
-              required
-              :placeholder="namePlaceholder"
-              class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              pattern="[a-z0-9_]+"
-              title="Use lowercase letters, numbers, and underscores only"
-            />
-            <p class="mt-1 text-xs text-slate-500">
-              Lowercase letters, numbers, and underscores only (max 50 chars)
-            </p>
-          </div>
-
-          <div>
-            <label
-              :for="`${itemNameLowercase}-display-name`"
-              class="mb-2 block text-sm font-medium text-slate-300"
-            >
-              Display Name <span class="text-slate-500">*</span>
-            </label>
-            <input
-              :id="`${itemNameLowercase}-display-name`"
-              v-model="newItem.displayName"
-              type="text"
-              required
-              :placeholder="displayNamePlaceholder"
-              class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              maxlength="100"
-            />
-            <p class="mt-1 text-xs text-slate-500">
-              Human-readable name (max 100 chars)
-            </p>
-          </div>
-
-          <div
-            v-if="addError"
-            class="rounded-md border border-rose-900/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-200"
-          >
-            {{ addError }}
-          </div>
-
-          <div class="flex items-center gap-3">
-            <button
-              type="submit"
-              :disabled="isAdding"
-              class="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span v-if="isAdding">Adding...</span>
-              <span v-else>Add {{ itemName }}</span>
-            </button>
-            <button
-              type="button"
-              @click="closeAddForm"
-              class="rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <!-- Состояния загрузки и ошибок -->
-      <section v-if="pending" class="grid h-48 place-items-center rounded-lg border border-slate-800 bg-slate-900">
-        <span class="text-sm text-slate-400">Загружаем данные…</span>
-      </section>
-
-      <section
-        v-else-if="error"
-        class="rounded-lg border border-rose-900/50 bg-rose-900/20 px-4 py-3 text-rose-200"
-      >
-        <p class="font-medium">Ошибка загрузки данных</p>
-        <p class="text-sm mt-1">{{ error.statusMessage ?? error.message ?? `Не удалось загрузить ${itemNamePluralLowercase}` }}</p>
-        <p class="text-xs mt-2 text-rose-300/70">Статус: {{ error.statusCode ?? 'Unknown' }}</p>
-      </section>
-
-      <!-- Таблица -->
-      <section v-else-if="!pending && !error" class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
-        <table class="w-full">
-          <thead class="border-b border-slate-800 bg-slate-800/50">
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
-                ID
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Name (Key)
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Display Name
-              </th>
-              <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Actions
-              </th>
+              <th>ID</th>
+              <th>Name (Key)</th>
+              <th>Display Name</th>
+              <th style="text-align:right">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800">
-            <tr
-              v-for="item in items"
-              :key="item.id"
-              class="hover:bg-slate-800/30 transition-colors"
-            >
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                {{ item.id }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-200">
-                {{ item.name }}
-              </td>
-              <td class="px-6 py-4 text-sm text-slate-100">
-                {{ item.display_name }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+          <tbody>
+            <tr v-for="item in items" :key="item.id">
+              <td class="td-id">{{ item.id }}</td>
+              <td class="td-key">{{ item.name }}</td>
+              <td>{{ item.display_name }}</td>
+              <td class="td-actions">
                 <button
-                  @click="handleDelete(item.id)"
+                  class="btn-ghost btn-sm btn-danger"
                   :disabled="isDeleting(item.id)"
-                  class="rounded-md border border-rose-700 bg-rose-900/20 px-3 py-1.5 text-xs font-medium text-rose-300 transition-colors hover:bg-rose-900/40 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                   type="button"
+                  @click="handleDelete(item.id)"
                 >
-                  <span v-if="isDeleting(item.id)">Удаление...</span>
-                  <span v-else>Удалить</span>
+                  <span v-if="isDeleting(item.id)" class="spinner-sm" />
+                  {{ isDeleting(item.id) ? 'Deleting...' : 'Delete' }}
                 </button>
-              </td>
-            </tr>
-            <tr v-if="!items.length">
-              <td colspan="4" class="px-6 py-8 text-center text-sm text-slate-400">
-                {{ itemNamePlural }} не найдены
               </td>
             </tr>
           </tbody>
         </table>
-      </section>
-
-      <div
-        v-if="deleteError"
-        class="mt-4 rounded-md border border-rose-900/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-200"
-      >
-        {{ deleteError }}
+        <div class="table-foot">Total {{ itemNamePluralLowercase }}: {{ items.length }}</div>
       </div>
+    </template>
+  </main>
 
-      <div v-if="items.length" class="mt-4 text-sm text-slate-400">
-        Всего {{ itemNamePluralLowercase }}: {{ items.length }}
+  <AppModal v-model="showAddForm" :title="`Add new ${itemName}`" modal-class="modal-sm" @closed="closeAddForm">
+    <form @submit.prevent="handleAdd">
+      <div class="field">
+        <label>Name (Key) <span class="req">*</span></label>
+        <input
+          v-model="newItem.name"
+          type="text"
+          :placeholder="namePlaceholder"
+          pattern="[a-z0-9_]+"
+          title="Use lowercase letters, numbers, and underscores only"
+        />
+        <span class="hint">Lowercase letters, numbers, underscore only</span>
       </div>
-    </main>
-  </div>
+      <div class="field">
+        <label>Display Name <span class="req">*</span></label>
+        <input
+          v-model="newItem.displayName"
+          type="text"
+          :placeholder="displayNamePlaceholder"
+          maxlength="100"
+        />
+        <span class="hint">Human-readable name (max 100 chars)</span>
+      </div>
+      <div v-if="addError" class="msg msg-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        {{ addError }}
+      </div>
+      <div class="form-foot">
+        <button type="button" class="btn-ghost" @click="closeAddForm">Cancel</button>
+        <button type="submit" class="btn-primary" :disabled="isAdding">
+          <span v-if="isAdding" class="spinner-sm" />
+          {{ isAdding ? 'Adding...' : `Add ${itemName}` }}
+        </button>
+      </div>
+    </form>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -230,5 +137,75 @@ const {
   itemNamePlural: props.itemNamePlural,
   itemNameLowercase: props.itemNameLowercase,
 });
+
+const clearDeleteError = () => { deleteError.value = null; };
 </script>
 
+<style lang="scss" scoped>
+@use '~/assets/styles/mixins' as *;
+
+.table-wrap {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+
+th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-3);
+  text-align: left;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  font-weight: 500;
+
+  @include respond-to(640) { padding: 10px 12px; font-size: 13px; }
+
+  &:first-child {
+    @include respond-to(640) { display: none; }
+  }
+}
+
+td {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  vertical-align: middle;
+
+  @include respond-to(640) { padding: 10px 12px; font-size: 13px; }
+}
+
+tr {
+  &:last-child td { border-bottom: none; }
+  &:hover td { background: var(--bg-2); }
+}
+
+.td-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-3);
+  width: 60px;
+
+  @include respond-to(640) { display: none; }
+}
+
+.td-key { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); }
+.td-actions { width: 120px; text-align: right; }
+
+.table-foot {
+  padding: 12px 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+</style>

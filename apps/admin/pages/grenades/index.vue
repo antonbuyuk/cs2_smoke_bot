@@ -16,6 +16,7 @@ definePageMeta({
 });
 
 const { t } = useI18n();
+const { isAuthenticated } = useAuth();
 
 const selectedMap = ref<'all' | string>('all');
 const showAddForm = ref(false);
@@ -307,381 +308,369 @@ const formatLine = (line: string | null | undefined) => {
 
   return getLineName(line) ?? line;
 };
+
+const isDragOver = ref(false);
 </script>
 
 <template>
-  <div class="bg-slate-950 text-slate-50">
-    <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <h1 class="text-xl font-semibold tracking-tight">{{ $t('pages.grenades.title') }}</h1>
-        <div class="flex items-center gap-4">
-          <button
-            @click="showAddForm = true"
-            class="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-950"
-          >
-            + {{ $t('pages.grenades.add') }}
-          </button>
-          <NuxtLink to="/" class="text-sm text-slate-400 hover:text-slate-200">
-            {{ $t('nav.home') }}
+  <main class="page">
+    <div class="page-head">
+      <h1>Lineups</h1>
+      <button v-if="isAuthenticated" class="btn-primary" @click="showAddForm = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add Lineup
+      </button>
+    </div>
+
+    <!-- Filter row -->
+    <div class="filter-row">
+      <label>Map</label>
+      <select v-model="selectedMap">
+        <option value="all">All maps</option>
+        <option v-for="option in mapOptions" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
+      </select>
+    </div>
+
+    <StateBox v-if="pending" type="loading" title="Loading lineups..." />
+    <StateBox v-else-if="errorMessage" type="error" title="Failed to load lineups" :description="errorMessage" />
+    <StateBox v-else-if="grenades.length === 0" type="empty" title="No lineups found" description="Try a different map filter or add a new lineup." />
+
+    <!-- Grid -->
+    <div v-else class="lineup-grid">
+      <article v-for="g in grenades" :key="g.id" class="l-card">
+        <div class="l-card-head">
+          <h3>{{ g.name }}</h3>
+          <GrenadeTypeBadge :type-name="g.grenade_type" :display-name="formatGrenade(g.grenade_type)" variant="simple" />
+        </div>
+        <div class="l-card-badges">
+          <span class="badge">{{ formatSide(g.side) }}-side</span>
+          <span v-if="g.line" class="badge">{{ formatLine(g.line) }}</span>
+          <span class="badge">{{ formatDifficulty(g.difficulty) }}</span>
+        </div>
+        <div class="l-card-meta">
+          <span>{{ g.map_display_name }}</span>
+        </div>
+        <p class="l-card-desc">{{ g.lineup_instructions }}</p>
+        <div class="l-card-foot">
+          <NuxtLink class="more-link" :to="`/grenades/${g.id}`">
+            More
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </NuxtLink>
         </div>
-      </div>
-    </header>
+      </article>
+    </div>
+  </main>
 
-    <main class="mx-auto max-w-6xl px-6 py-8">
-      <!-- Форма добавления гранаты -->
-      <section
-        v-if="showAddForm"
-        class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-6"
-      >
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold">{{ $t('pages.grenades.addForm.title') }}</h2>
-          <button
-            @click="closeAddForm"
-            class="text-slate-400 hover:text-slate-200"
-            type="button"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form @submit.prevent="handleAddGrenade" class="space-y-4">
-          <div class="grid gap-4 md:grid-cols-2">
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-300">
-                {{ $t('pages.grenades.addForm.name') }} <span class="text-slate-500">*</span>
-              </label>
-              <input
-                v-model="formData.name"
-                type="text"
-                required
-                :placeholder="$t('pages.grenades.addForm.namePlaceholder')"
-                class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              />
+  <AppModal v-model="showAddForm" title="Add new lineup" modal-class="modal-md" @closed="closeAddForm">
+    <form @submit.prevent="handleAddGrenade">
+          <div class="form-grid">
+            <div class="field">
+              <label>{{ t('pages.grenades.addForm.name') }} <span class="req">*</span></label>
+              <input v-model="formData.name" type="text" :placeholder="t('pages.grenades.addForm.namePlaceholder')" />
             </div>
-
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-300">
-                {{ $t('pages.grenades.addForm.map') }} <span class="text-slate-500">*</span>
-              </label>
-              <select
-                v-model="formData.mapName"
-                required
-                class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                <option value="">{{ $t('pages.grenades.addForm.map') }}</option>
-                <option
-                  v-for="map in maps"
-                  :key="map.id"
-                  :value="map.name"
-                >
-                  {{ map.display_name }}
-                </option>
+            <div class="field">
+              <label>{{ t('pages.grenades.addForm.map') }}</label>
+              <select v-model="formData.mapName" class="form-select">
+                <option value="">— {{ t('pages.grenades.addForm.map') }} —</option>
+                <option v-for="map in maps" :key="map.id" :value="map.name">{{ map.display_name }}</option>
               </select>
             </div>
-
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-300">
-                {{ $t('pages.grenades.addForm.side') }} <span class="text-slate-500">*</span>
-              </label>
-              <select
-                v-model="formData.side"
-                required
-                class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                <option value="">{{ $t('pages.grenades.addForm.side') }}</option>
-                <option
-                  v-for="side in sides"
-                  :key="side.id"
-                  :value="side.name"
-                >
-                  {{ side.display_name }}
-                </option>
+            <div class="field">
+              <label>{{ t('pages.grenades.addForm.side') }}</label>
+              <select v-model="formData.side" class="form-select">
+                <option value="">— {{ t('pages.grenades.addForm.side') }} —</option>
+                <option v-for="s in sides" :key="s.id" :value="s.name">{{ s.display_name }}</option>
               </select>
             </div>
-
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-300">
-                {{ $t('pages.grenades.addForm.difficulty') }} <span class="text-slate-500">*</span>
-              </label>
-              <select
-                v-model="formData.difficulty"
-                required
-                class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                <option value="">{{ $t('pages.grenades.addForm.difficulty') }}</option>
-                <option
-                  v-for="difficulty in difficulties"
-                  :key="difficulty.id"
-                  :value="difficulty.name"
-                >
-                  {{ difficulty.display_name }}
-                </option>
+            <div class="field">
+              <label>{{ t('pages.grenades.addForm.difficulty') }}</label>
+              <select v-model="formData.difficulty" class="form-select">
+                <option value="">— {{ t('pages.grenades.addForm.difficulty') }} —</option>
+                <option v-for="d in difficulties" :key="d.id" :value="d.name">{{ d.display_name }}</option>
               </select>
             </div>
-
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-300">
-                {{ $t('pages.grenades.addForm.lineOptional') }}
-              </label>
-              <select
-                v-model="formData.line"
-                class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                <option value="">{{ $t('pages.grenades.addForm.lineOptional') }}</option>
-                <option
-                  v-for="line in lines"
-                  :key="line.id"
-                  :value="line.name"
-                >
-                  {{ line.display_name }}
-                </option>
+            <div class="field">
+              <label>{{ t('pages.grenades.addForm.lineOptional') }}</label>
+              <select v-model="formData.line" class="form-select">
+                <option value="">— none —</option>
+                <option v-for="l in lines" :key="l.id" :value="l.name">{{ l.display_name }}</option>
               </select>
             </div>
-
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-300">
-                {{ $t('pages.grenades.addForm.grenadeType') }} <span class="text-slate-500">*</span>
-              </label>
-              <select
-                v-model="formData.grenadeType"
-                required
-                class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                <option value="">{{ $t('pages.grenades.addForm.grenadeType') }}</option>
-                <option
-                  v-for="type in grenadeTypes"
-                  :key="type.id"
-                  :value="type.name"
-                >
-                  {{ type.display_name }}
-                </option>
+            <div class="field">
+              <label>{{ t('pages.grenades.addForm.grenadeType') }}</label>
+              <select v-model="formData.grenadeType" class="form-select">
+                <option value="">— {{ t('pages.grenades.addForm.grenadeType') }} —</option>
+                <option v-for="type in grenadeTypes" :key="type.id" :value="type.name">{{ type.display_name }}</option>
               </select>
+            </div>
+            <div class="field full">
+              <label>{{ t('pages.grenades.addForm.instructions') }} <span class="req">*</span></label>
+              <textarea v-model="formData.lineup_instructions" :placeholder="t('pages.grenades.addForm.instructionsPlaceholder')" />
             </div>
           </div>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300">
-              {{ $t('pages.grenades.addForm.instructions') }} <span class="text-slate-500">*</span>
-            </label>
-            <textarea
-              v-model="formData.lineup_instructions"
-              required
-              rows="5"
-              :placeholder="$t('pages.grenades.addForm.instructionsPlaceholder')"
-              class="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+          <!-- Dropzone -->
+          <div
+            :class="['dropzone', { dragover: isDragOver }]"
+            @click="($refs.fileInput as HTMLInputElement)?.click()"
+            @drop.prevent="handleDropZone"
+            @dragover.prevent="isDragOver = true"
+            @dragleave="isDragOver = false"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p>{{ t('pages.grenades.addForm.dropFiles') }}</p>
+            <span class="hint">Max 10 files · Images and video</span>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              hidden
+              :disabled="uploadedFiles.length >= 10"
+              @change="handleFileSelect"
             />
           </div>
 
-          <!-- Загрузка файлов -->
-          <div>
-            <label class="mb-2 block text-sm font-medium text-slate-300">
-              {{ $t('pages.grenades.addForm.images') }}
-              <span class="text-slate-500">({{ $t('pages.grenades.addForm.maxFiles') }})</span>
-            </label>
-
-            <!-- Drop Zone -->
+          <!-- File list -->
+          <div v-if="uploadedFiles.length > 0" class="file-list">
             <div
-              @drop.prevent="handleDropZone"
+              v-for="(f, i) in uploadedFiles"
+              :key="f.id"
+              class="file-item"
+              draggable="true"
+              @dragstart="handleDragStart($event, i)"
               @dragover.prevent="handleDragOver"
-              class="mb-4 rounded-lg border-2 border-dashed border-slate-700 bg-slate-800/50 p-6 text-center transition-colors hover:border-sky-500"
+              @drop.prevent="handleDrop($event, i)"
             >
-              <input
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                @change="handleFileSelect"
-                class="hidden"
-                id="file-upload"
-                :disabled="uploadedFiles.length >= 10"
-              />
-              <label
-                for="file-upload"
-                class="cursor-pointer text-sm text-slate-400 hover:text-slate-200"
-              >
-                {{ $t('pages.grenades.addForm.dropFiles') }} или
-                <span class="text-sky-400 underline">{{ $t('pages.grenades.addForm.selectFiles') }}</span>
-              </label>
-              <p class="mt-2 text-xs text-slate-500">
-                {{ $t('pages.grenades.addForm.fileTypes') }}
-              </p>
-            </div>
-
-            <!-- Список загруженных файлов с drag-and-drop -->
-            <div v-if="uploadedFiles.length > 0" class="space-y-2">
-              <div
-                v-for="(uploadedFile, index) in uploadedFiles"
-                :key="uploadedFile.id"
-                draggable="true"
-                @dragstart="handleDragStart($event, index)"
-                @dragover.prevent="handleDragOver"
-                @drop.prevent="handleDrop($event, index)"
-                class="group flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 p-3 transition-all hover:border-sky-500"
-              >
-                <div class="flex-shrink-0 cursor-move text-slate-400 group-hover:text-sky-400">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-                  </svg>
-                </div>
-
-                <div class="flex-1 flex items-center gap-3">
-                  <div v-if="uploadedFile.mediaType === 'photo'" class="h-16 w-16 flex-shrink-0 overflow-hidden rounded border border-slate-700">
-                    <img :src="uploadedFile.preview" :alt="uploadedFile.file.name" class="h-full w-full object-cover" />
-                  </div>
-                  <div v-else class="h-16 w-16 flex-shrink-0 flex items-center justify-center rounded border border-slate-700 bg-slate-900">
-                    <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-slate-200 truncate">{{ uploadedFile.file.name }}</p>
-                    <p class="text-xs text-slate-400">
-                      {{ uploadedFile.mediaType === 'photo' ? $t('pages.grenades.addForm.photo') : $t('pages.grenades.addForm.video') }}
-                      <span v-if="index === 0" class="ml-2 text-sky-400">({{ $t('pages.grenades.addForm.coverImage') }})</span>
-                    </p>
-                  </div>
-
-                  <button
-                    @click="removeFile(uploadedFile.id)"
-                    type="button"
-                    class="flex-shrink-0 rounded p-1 text-slate-400 hover:bg-rose-900/50 hover:text-rose-400"
-                  >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="uploadError" class="mt-2 rounded-md border border-rose-900/50 bg-rose-900/20 px-3 py-2 text-xs text-rose-200">
-              {{ uploadError }}
+              <span class="drag-handle" style="display:flex;gap:2px;flex-direction:column">
+                <button type="button" @click="moveFile(i, i - 1)" style="background:none;border:none;color:var(--text-4);cursor:pointer;padding:0;line-height:1;font-size:10px">▲</button>
+                <button type="button" @click="moveFile(i, i + 1)" style="background:none;border:none;color:var(--text-4);cursor:pointer;padding:0;line-height:1;font-size:10px">▼</button>
+              </span>
+              <span class="file-name">{{ f.file.name }}</span>
+              <span class="file-size">{{ (f.file.size / 1024).toFixed(0) }} KB</span>
+              <span v-if="i === 0" class="cover-badge">Cover</span>
+              <button type="button" class="file-remove" @click="removeFile(f.id)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
             </div>
           </div>
 
-          <div
-            v-if="addError"
-            class="rounded-md border border-rose-900/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-200"
-          >
+          <!-- Upload error -->
+          <div v-if="uploadError" class="msg msg-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            {{ uploadError }}
+          </div>
+
+          <!-- Add error -->
+          <div v-if="addError" class="msg msg-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
             {{ addError }}
           </div>
 
-          <div
-            v-if="addSuccess"
-            class="rounded-md border border-green-900/50 bg-green-900/20 px-4 py-3 text-sm text-green-200"
-          >
-            {{ $t('pages.grenades.addForm.success') }}
+          <!-- Success -->
+          <div v-if="addSuccess" class="msg msg-success">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            {{ t('pages.grenades.addForm.success') }}
           </div>
 
-          <div class="flex items-center gap-3">
-            <button
-              type="submit"
-              :disabled="isSubmitting"
-              class="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span v-if="isSubmitting">{{ $t('pages.grenades.addForm.submitting') }}</span>
-              <span v-else>{{ $t('pages.grenades.addForm.submit') }}</span>
-            </button>
-            <button
-              type="button"
-              @click="closeAddForm"
-              class="rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700"
-            >
-              {{ $t('pages.grenades.addForm.cancel') }}
+          <div class="form-foot">
+            <button type="button" class="btn-ghost" @click="closeAddForm">{{ t('pages.grenades.addForm.cancel') }}</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              <span v-if="isSubmitting || isUploading">{{ t('pages.grenades.addForm.submitting') }}</span>
+              <span v-else>{{ t('pages.grenades.addForm.submit') }}</span>
             </button>
           </div>
-        </form>
-      </section>
-
-      <section class="grid gap-6">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p class="text-sm text-slate-400">
-              {{ $t('pages.grenades.description') }}
-            </p>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <label class="text-sm text-slate-300" for="map-filter">{{ $t('pages.grenades.map') }}</label>
-            <select
-              id="map-filter"
-              class="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              v-model="selectedMap"
-            >
-              <option value="all">{{ $t('pages.grenades.allMaps') }}</option>
-              <option
-                v-for="option in mapOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-          </div>
-        </div>
-
-        <section
-          v-if="pending"
-          class="grid h-48 place-items-center rounded-lg border border-slate-800 bg-slate-900"
-        >
-          <span class="text-sm text-slate-400">{{ $t('pages.grenades.loading') }}</span>
-        </section>
-
-        <section
-          v-else-if="errorMessage"
-          class="rounded-lg border border-rose-900/50 bg-rose-900/20 px-4 py-3 text-rose-200"
-        >
-          {{ $t('pages.grenades.error') }}
-        </section>
-
-        <section
-          v-else
-          class="grid gap-4 md:grid-cols-2"
-        >
-          <article
-            v-for="grenade in grenades"
-            :key="grenade.id"
-            class="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 px-5 py-4 shadow-sm shadow-black/30"
-          >
-            <header class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="text-base font-semibold text-slate-100">
-                  {{ grenade.name }}
-                </h2>
-                <p class="text-xs text-slate-400">
-                  {{ formatMap(grenade.map_name) }} • {{ formatSide(grenade.side) }} •
-                  {{ formatGrenade(grenade.grenade_type) }}
-                </p>
-              </div>
-              <span class="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
-                {{ formatDifficulty(grenade.difficulty) }}
-              </span>
-            </header>
-
-            <p class="text-sm whitespace-pre-line text-slate-300">
-              {{ grenade.lineup_instructions }}
-            </p>
-
-            <footer class="mt-auto flex items-center justify-between text-xs text-slate-500">
-              <span>
-                {{ formatLine(grenade.line) }} • ID: {{ grenade.id }}
-              </span>
-              <NuxtLink
-                class="text-sky-400 hover:text-sky-300"
-                :to="`/grenades/${grenade.id}`"
-              >
-                {{ $t('pages.grenades.more') }}
-              </NuxtLink>
-            </footer>
-          </article>
-
-          <p v-if="!grenades.length" class="col-span-full rounded-lg border border-slate-800 bg-slate-900 px-4 py-5 text-center text-sm text-slate-400">
-            {{ $t('pages.grenades.notFound') }}
-          </p>
-        </section>
-      </section>
-    </main>
-  </div>
+    </form>
+  </AppModal>
 </template>
 
+<style lang="scss" scoped>
+@use '~/assets/styles/mixins' as *;
+
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+
+  label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-3);
+  }
+}
+
+select {
+  height: 36px;
+  padding: 0 32px 0 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  border-radius: 8px;
+  font-size: 13px;
+  appearance: none;
+  // stylelint-disable-next-line function-url-quotes
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a4abbb' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+
+  &:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+}
+
+.lineup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+
+  @include respond-to(720) { grid-template-columns: 1fr; }
+}
+
+.l-card {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+
+  &:hover { border-color: var(--line-strong); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+
+  &-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+
+    h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.005em; margin: 0; }
+  }
+
+  &-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  &-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-3);
+
+    span { display: inline-flex; align-items: center; gap: 5px; }
+  }
+
+  &-desc {
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+  }
+
+  &-foot {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+.more-link {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+  svg { width: 14px; height: 14px; }
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+
+  @include respond-to(520) { grid-template-columns: 1fr; }
+
+  .field.full { grid-column: 1 / -1; }
+}
+
+.dropzone {
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--radius);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-3);
+
+  &:hover, &.dragover { border-color: var(--accent); background: var(--accent-soft); }
+  svg { width: 28px; height: 28px; color: var(--text-3); }
+  p { font-size: 13px; margin: 0; }
+  .hint { font-size: 11px; color: var(--text-4); }
+}
+
+.file-list { display: flex; flex-direction: column; gap: 8px; }
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+
+  .drag-handle { cursor: grab; color: var(--text-4); display: flex; align-items: center; }
+  .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-1); }
+  .file-size { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); }
+
+  .cover-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--accent);
+  }
+
+  .file-remove {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-3);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: all .15s;
+    flex-shrink: 0;
+
+    &:hover { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+    svg { width: 12px; height: 12px; }
+  }
+}
+</style>

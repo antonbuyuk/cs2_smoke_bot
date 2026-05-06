@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { upsertUser, setUserRole } from '@shared/database';
 
 type TelegramAuthData = {
   id: string;
@@ -30,20 +31,17 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Проверка времени авторизации (не старше 24 часов)
   const authDate = Number.parseInt(query.auth_date, 10);
   const currentTime = Math.floor(Date.now() / 1000);
   const timeDiff = currentTime - authDate;
 
   if (timeDiff > 86400) {
-    // 24 часа
     throw createError({
       statusCode: 401,
       message: 'Authentication data expired',
     });
   }
 
-  // Проверка подписи
   const dataCheckString = Object.keys(query)
     .filter((key) => key !== 'hash')
     .sort()
@@ -60,7 +58,6 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Проверка через Telegram Bot API (опционально, для дополнительной безопасности)
   try {
     const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${query.id}`);
     const telegramData = await telegramResponse.json();
@@ -72,21 +69,27 @@ export default defineEventHandler(async (event) => {
       });
     }
   } catch (error) {
-    // Если проверка через API не удалась, но hash валиден, все равно разрешаем доступ
-    // Это может произойти если пользователь удалил бота или бот недоступен
     console.warn('Telegram API verification failed, but hash is valid:', error);
   }
 
-  // Проверяем, является ли пользователь админом
-  const { isAdmin } = await import('../../utils/auth');
-  const userId = query.id;
+  const telegramId = Number.parseInt(query.id, 10);
 
-  if (!isAdmin(userId)) {
-    // Редиректим на страницу логина с сообщением об ошибке
-    return sendRedirect(event, '/login?error=access_denied', 302);
+  const { role: dbRole } = await upsertUser({
+    telegramId,
+    username: query.username ?? null,
+    firstName: query.first_name,
+    lastName: query.last_name ?? null,
+    photoUrl: query.photo_url ?? null,
+  });
+
+  const { getAdminIds } = await import('../../utils/auth');
+  const adminIds = getAdminIds();
+  if (adminIds.includes(telegramId)) {
+    await setUserRole(telegramId, 'admin');
   }
 
-  // Создаем сессию
+  const role = adminIds.includes(telegramId) ? 'admin' : dbRole;
+
   const session = {
     userId: query.id,
     username: query.username || query.first_name,
@@ -94,17 +97,15 @@ export default defineEventHandler(async (event) => {
     lastName: query.last_name,
     photoUrl: query.photo_url,
     authDate: authDate,
+    role,
   };
 
-  // Сохраняем в куки
   setCookie(event, 'auth_session', JSON.stringify(session), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 дней
+    maxAge: 60 * 60 * 24 * 7,
   });
 
-  // Редиректим на главную страницу после успешной авторизации
   return sendRedirect(event, '/', 302);
 });
-

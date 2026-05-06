@@ -39,7 +39,20 @@ export interface SmokeRecord {
 export type SmokeWithMap = SmokeRecord & {
   map_name: MapKey;
   map_display_name: string;
+  cover_file_id?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_by: number | null;
 };
+
+export interface UserRecord {
+  telegramId: number;
+  username: string | null;
+  firstName: string;
+  lastName: string | null;
+  photoUrl: string | null;
+  role: 'admin' | 'user';
+  createdAt: string;
+}
 
 export interface SmokeMediaRecord {
   id: number;
@@ -95,6 +108,7 @@ export interface MapRecord {
   id: number;
   name: RealMapKey;
   display_name: string;
+  position_image_url: string | null;
 }
 
 // Reference table records
