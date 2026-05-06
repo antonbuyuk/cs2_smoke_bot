@@ -1,7 +1,8 @@
 import { readBody, createError } from 'h3';
 
-import { addSmoke, saveSmokeMediaBatch, isValidMapName } from '@shared/database';
-import type { NewSmokeInput, RealMapKey, MediaType } from '@shared/utils/types';
+import { addSmokeWithStatus, saveSmokeMediaBatch, isValidMapName } from '@shared/database';
+import { requireUser, isAdmin } from '../../utils/auth';
+import type { NewSmokeInput, MediaType } from '@shared/utils/types';
 
 type CreateGrenadeBody = NewSmokeInput & {
   mapName: string;
@@ -9,6 +10,8 @@ type CreateGrenadeBody = NewSmokeInput & {
 };
 
 export default defineEventHandler(async (event) => {
+  const session = requireUser(event);
+
   const payload = await readBody<CreateGrenadeBody>(event);
 
   if (!payload?.mapName || typeof payload.mapName !== 'string') {
@@ -36,18 +39,19 @@ export default defineEventHandler(async (event) => {
     grenadeType: payload.grenadeType,
   };
 
+  const adminUser = isAdmin(session.userId, session.role);
+  const status = adminUser ? 'approved' : 'pending';
+  const createdByParsed = Number.parseInt(session.userId, 10);
+  const createdBy = Number.isNaN(createdByParsed) ? null : createdByParsed;
+
   try {
-    const newId = await addSmoke(payload.mapName, grenadeData);
+    const newId = await addSmokeWithStatus(payload.mapName, grenadeData, createdBy, status);
 
     if (!newId || newId === 0) {
       throw new Error('Failed to create grenade: invalid ID returned');
     }
 
-    // Сохраняем медиа файлы, если они есть
     if (payload.mediaFiles && payload.mediaFiles.length > 0) {
-      console.log('Saving media files for grenade ID:', newId);
-      console.log('Media files payload:', JSON.stringify(payload.mediaFiles, null, 2));
-
       const mediaData = payload.mediaFiles.map((media) => {
         if (!media.fileId || typeof media.fileId !== 'string') {
           throw new Error(`Invalid fileId in media: ${JSON.stringify(media)}`);
@@ -58,7 +62,6 @@ export default defineEventHandler(async (event) => {
         if (typeof media.sortOrder !== 'number') {
           throw new Error(`Invalid sortOrder in media: ${JSON.stringify(media)}`);
         }
-
         return {
           fileId: media.fileId,
           mediaType: media.mediaType,
@@ -67,14 +70,10 @@ export default defineEventHandler(async (event) => {
         };
       });
 
-      console.log('Processed media data:', JSON.stringify(mediaData, null, 2));
       await saveSmokeMediaBatch(newId, mediaData);
-      console.log('Media files saved successfully');
     }
 
-    return {
-      id: newId,
-    };
+    return { id: newId, status };
   } catch (error) {
     console.error('Error creating grenade entry:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -85,4 +84,3 @@ export default defineEventHandler(async (event) => {
     });
   }
 });
-

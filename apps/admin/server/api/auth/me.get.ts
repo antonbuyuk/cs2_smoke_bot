@@ -1,7 +1,6 @@
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event);
 
-  // В режиме разработки возвращаем мокового пользователя
   if (config.developMode) {
     return {
       user: {
@@ -10,6 +9,7 @@ export default defineEventHandler(async (event) => {
         firstName: 'Dev',
         lastName: 'User',
         photoUrl: undefined,
+        role: 'admin',
       },
     };
   }
@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
         firstName: session.firstName,
         lastName: session.lastName,
         photoUrl: session.photoUrl,
+        role: session.role ?? 'user',
       },
     };
   } catch {
@@ -41,4 +42,3 @@ export default defineEventHandler(async (event) => {
     });
   }
 });
-

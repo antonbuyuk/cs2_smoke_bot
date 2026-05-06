@@ -2,10 +2,10 @@
 import { computed } from 'vue';
 import { useRoute } from '#app';
 import {
-  getMapName,
   getSideName,
   getDifficultyName,
   getLineName,
+  getGrenadeTypeName,
 } from '@shared/config/constants';
 import type { SmokeWithMap, SmokeMediaRecord } from '@shared/utils/types';
 
@@ -30,61 +30,125 @@ const buildMediaUrl = (fileId: string) => {
   return `/api/media/${encodeURIComponent(cleanFileId)}`;
 };
 
-const formatMap = (value: string) => getMapName(value) ?? value;
 const formatSide = (value: string) => getSideName(value) ?? value;
 const formatDifficulty = (value: string) => getDifficultyName(value) ?? value;
 const formatLine = (value: string | null | undefined) =>
   value ? getLineName(value) ?? value : '—';
+const formatGrenade = (value: string) => getGrenadeTypeName(value) ?? value;
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl px-6 py-8 text-slate-50">
-    <NuxtLink to="/grenades" class="text-sm text-slate-400 hover:text-slate-200">{{ $t('components.grenadeDetail.back') }}</NuxtLink>
+  <main class="page">
+    <NuxtLink class="back-link" to="/grenades">← Back to grenades</NuxtLink>
 
-    <section v-if="pending" class="mt-8 text-slate-400">{{ $t('components.grenadeDetail.loading') }}</section>
-    <section v-else-if="error" class="mt-8 text-rose-400">
-      {{ error.statusMessage ?? $t('components.grenadeDetail.error') }}
-    </section>
-    <section v-else-if="grenade" class="mt-6 space-y-6">
-      <header>
-        <h1 class="text-2xl font-semibold">{{ grenade.name }}</h1>
-        <p class="text-sm text-slate-400">
-          {{ formatMap(grenade.map_name) }} • {{ formatSide(grenade.side) }} •
-          {{ formatLine(grenade.line) }} • {{ formatDifficulty(grenade.difficulty) }}
-        </p>
-      </header>
+    <StateBox v-if="pending" type="loading" title="Loading lineup..." />
+    <StateBox v-else-if="error" type="error" title="Failed to load lineup" :description="error.statusMessage ?? $t('components.grenadeDetail.error')" />
 
-      <p class="whitespace-pre-line text-sm text-slate-200">
-        {{ grenade.lineup_instructions }}
-      </p>
-
-      <div v-if="media.length" class="grid gap-4 md:grid-cols-2">
-        <article
-          v-for="item in media"
-          :key="item.id"
-          class="space-y-2 rounded-lg border border-slate-800 bg-slate-900 p-3"
-        >
-          <img
-            v-if="item.media_type === 'photo'"
-            :src="buildMediaUrl(item.file_id)"
-            alt="Фото гранаты"
-            class="w-full rounded-md object-cover"
-            loading="lazy"
-          />
-          <video
-            v-else
-            controls
-            preload="metadata"
-            :src="buildMediaUrl(item.file_id)"
-            class="w-full rounded-md"
-          />
-          <p v-if="item.caption" class="text-xs text-slate-400">
-            {{ item.caption }}
-          </p>
-        </article>
+    <!-- Content -->
+    <template v-else-if="grenade">
+      <div class="detail-header">
+        <h1>{{ grenade.name }}</h1>
+        <div class="meta-row">
+          <GrenadeTypeBadge :type-name="grenade.grenade_type" :display-name="formatGrenade(grenade.grenade_type)" variant="simple" />
+          <span class="badge">{{ grenade.map_display_name }}</span>
+          <span class="badge">{{ formatSide(grenade.side) }}-side</span>
+          <span v-if="grenade.line" class="badge">{{ formatLine(grenade.line) }}</span>
+          <span class="badge">{{ formatDifficulty(grenade.difficulty) }}</span>
+        </div>
       </div>
-      <p v-else class="text-sm text-slate-400">{{ $t('components.grenadeDetail.noMedia') }}</p>
-    </section>
+
+      <div class="section">
+        <h2>Instructions</h2>
+        <p style="white-space:pre-line">{{ grenade.lineup_instructions }}</p>
+      </div>
+
+      <div class="section">
+        <h2>Media</h2>
+        <StateBox v-if="media.length === 0" type="empty" title="No media available" :description="$t('components.grenadeDetail.noMedia')" />
+        <div v-else class="media-grid">
+          <div v-for="item in media" :key="item.id" class="media-cell">
+            <div class="media-box">
+              <img
+                v-if="item.media_type === 'photo'"
+                :src="buildMediaUrl(item.file_id)"
+                alt=""
+              />
+              <video
+                v-else
+                controls
+                :src="buildMediaUrl(item.file_id)"
+              />
+            </div>
+            <div v-if="item.caption" class="caption">{{ item.caption }}</div>
+          </div>
+        </div>
+      </div>
+    </template>
   </main>
 </template>
 
+<style lang="scss" scoped>
+@use '~/assets/styles/mixins' as *;
+
+// Detail page uses taller badges — pierce into GrenadeTypeBadge component
+:deep(.badge) { height: 28px; padding: 0 12px; }
+
+.detail-header {
+  margin-bottom: 28px;
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+
+    @include respond-to(640) { font-size: 22px; }
+  }
+}
+
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.section {
+  margin-bottom: 28px;
+
+  h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--text-3);
+    margin: 0 0 12px;
+  }
+
+  p { font-size: 15px; line-height: 1.65; color: var(--text-1); max-width: 70ch; margin: 0; }
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+
+  @include respond-to(640) { grid-template-columns: 1fr; }
+}
+
+.media-cell {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.media-box {
+  aspect-ratio: 16/10;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-3);
+
+  img  { width: 100%; height: 100%; object-fit: cover; display: block; }
+  video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+}
+
+.caption { padding: 10px 14px; font-size: 12px; color: var(--text-2); font-family: 'JetBrains Mono', monospace; }
+</style>

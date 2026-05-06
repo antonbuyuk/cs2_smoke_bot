@@ -125,6 +125,7 @@ export const useReferenceTable = <T extends ReferenceRecord>(config: ReferenceTa
     handleDelete,
     isDeleting,
     deleteError,
+    refresh,
   };
 };
 

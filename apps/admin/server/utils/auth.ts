@@ -7,9 +7,9 @@ export type AuthSession = {
   lastName?: string;
   photoUrl?: string;
   authDate: number;
+  role: 'admin' | 'user';
 };
 
-// Функция для получения списка админов из переменных окружения
 export const getAdminIds = (): number[] => {
   const adminIdsStr = process.env.ADMIN_IDS;
   if (!adminIdsStr) {
@@ -22,8 +22,8 @@ export const getAdminIds = (): number[] => {
     .filter((id) => !Number.isNaN(id));
 };
 
-// Функция для проверки, является ли пользователь админом
-export const isAdmin = (userId: string): boolean => {
+export const isAdmin = (userId: string, sessionRole?: 'admin' | 'user'): boolean => {
+  if (sessionRole === 'admin') return true;
   const adminIds = getAdminIds();
   const userIdNum = Number.parseInt(userId, 10);
   return adminIds.includes(userIdNum);
@@ -44,19 +44,21 @@ export const getAuthSession = (event: H3Event): AuthSession | null => {
   }
 };
 
+const DEV_SESSION: AuthSession = {
+  userId: 'dev-user-1',
+  username: 'devuser',
+  firstName: 'Dev',
+  lastName: 'User',
+  photoUrl: undefined,
+  authDate: Date.now(),
+  role: 'admin',
+};
+
 export const requireAuth = (event: H3Event): AuthSession => {
   const config = useRuntimeConfig(event);
 
-  // В режиме разработки возвращаем моковую сессию
   if (config.developMode) {
-    return {
-      userId: 'dev-user-1',
-      username: 'devuser',
-      firstName: 'Dev',
-      lastName: 'User',
-      photoUrl: undefined,
-      authDate: Date.now(),
-    };
+    return DEV_SESSION;
   }
 
   const session = getAuthSession(event);
@@ -71,26 +73,20 @@ export const requireAuth = (event: H3Event): AuthSession => {
   return session;
 };
 
-// Функция для проверки прав администратора
+export const requireUser = (event: H3Event): AuthSession => {
+  return requireAuth(event);
+};
+
 export const requireAdmin = (event: H3Event): AuthSession => {
   const config = useRuntimeConfig(event);
 
-  // В режиме разработки возвращаем моковую сессию
   if (config.developMode) {
-    return {
-      userId: 'dev-user-1',
-      username: 'devuser',
-      firstName: 'Dev',
-      lastName: 'User',
-      photoUrl: undefined,
-      authDate: Date.now(),
-    };
+    return DEV_SESSION;
   }
 
   const session = requireAuth(event);
 
-  // Проверяем, является ли пользователь админом
-  if (!isAdmin(session.userId)) {
+  if (!isAdmin(session.userId, session.role)) {
     throw createError({
       statusCode: 403,
       message: 'Admin access required',
@@ -99,4 +95,3 @@ export const requireAdmin = (event: H3Event): AuthSession => {
 
   return session;
 };
-
