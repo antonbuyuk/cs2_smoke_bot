@@ -6,7 +6,7 @@ const sharedPath = fileURLToPath(new URL('../../packages/shared', import.meta.ur
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@nuxtjs/i18n'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxtjs/i18n', '@vite-pwa/nuxt'],
   css: ['~/assets/styles/main.scss'],
   alias: {
     '@shared': sharedPath,
@@ -57,5 +57,67 @@ export default defineNuxtConfig({
       redirectOn: 'root',
     },
     vueI18n: './i18n.config.ts',
+  },
+  pwa: {
+    registerType: 'autoUpdate',
+    manifest: {
+      name: 'CS2 Smoke Bot',
+      short_name: 'CS2 Smokes',
+      description: 'Личный flashcard-deck для line-up\'ов гранат CS2',
+      theme_color: '#0d0f14',
+      background_color: '#0d0f14',
+      display: 'standalone',
+      scope: '/',
+      start_url: '/',
+      lang: 'ru',
+      icons: [
+        { src: '/icons/logo-small.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icons/logo-large.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icons/logo-large.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    },
+    workbox: {
+      navigateFallback: '/',
+      navigateFallbackDenylist: [/^\/api\//, /^\/login/],
+      globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+      runtimeCaching: [
+        // Медиа гранат — file_id immutable, кэшируем агрессивно
+        {
+          urlPattern: /\/api\/media\//,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'media-cache',
+            expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+        // Авторизация — никогда не кэшировать
+        {
+          urlPattern: /\/api\/auth\//,
+          handler: 'NetworkOnly',
+        },
+        // Личный прогресс — никогда не кэшировать (всегда свежий)
+        {
+          urlPattern: /\/api\/me\//,
+          handler: 'NetworkOnly',
+        },
+        // Остальные API — мгновенный отклик + фоновое обновление
+        {
+          urlPattern: /\/api\//,
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'api-cache',
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+      ],
+    },
+    client: {
+      installPrompt: true,
+    },
+    devOptions: {
+      // SW в dev мешает HMR; включай вручную при отладке кэшей
+      enabled: false,
+    },
   },
 });
