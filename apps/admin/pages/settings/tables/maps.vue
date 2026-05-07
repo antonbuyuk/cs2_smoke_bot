@@ -5,7 +5,6 @@ import { useReferenceTable } from '~/composables/useReferenceTable';
 
 definePageMeta({
   layout: 'default',
-  middleware: 'auth-admin',
 });
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;

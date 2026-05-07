@@ -1,7 +1,6 @@
 <script setup lang="ts">
 definePageMeta({
   layout: 'default',
-  middleware: 'auth-admin',
 });
 
 // Загружаем количество записей во всех справочных таблицах одним запросом

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { UserRecord } from '@shared/utils/types';
 
-definePageMeta({ middleware: 'auth-admin' });
-
 const { user: currentUser } = useAuth();
 
 const { data, refresh } = await useFetch<{ data: UserRecord[] }>('/api/users');

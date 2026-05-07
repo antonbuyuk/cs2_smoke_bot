@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { SmokeWithMap } from '@shared/utils/types';
 
-definePageMeta({ middleware: 'auth-admin' });
-
 const { data, refresh, pending } = await useFetch<{ data: SmokeWithMap[] }>('/api/grenades/pending');
 const grenades = computed(() => data.value?.data ?? []);
 
