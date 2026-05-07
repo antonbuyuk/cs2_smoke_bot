@@ -1,17 +1,18 @@
 # syntax=docker/dockerfile:1.7
 
 # ─── builder ─────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 
-# Сначала только package.json'ы — слой npm ci кешируется, пока они не меняются
+# Сначала только package.json'ы — слой install кешируется, пока они не меняются
 COPY package.json package-lock.json ./
 COPY apps/admin/package.json ./apps/admin/
 COPY apps/bot/package.json ./apps/bot/
 COPY packages/shared/package.json ./packages/shared/
 
-# Все зависимости, включая dev — нужны для nuxt build
-RUN npm ci --include=dev
+# npm install (а не ci) — обходим баг npm с optional native bindings (#4828):
+# lockfile, сгенерированный на Windows, не содержит linux-binding'и oxc-minify.
+RUN npm install --include=dev
 
 # Исходники
 COPY . .
@@ -20,7 +21,7 @@ COPY . .
 RUN npm run build:admin
 
 # ─── runner ──────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
