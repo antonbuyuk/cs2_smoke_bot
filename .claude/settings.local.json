@@ -33,7 +33,12 @@
       "Bash(git --no-pager show HEAD:packages/shared/utils/types/index.ts)",
       "Bash(python3 *)",
       "Bash(PYTHONIOENCODING=utf-8 python3 *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(docker --version)",
+      "Bash(docker info *)",
+      "PowerShell($pg = -join \\(\\(48..57\\) + \\(65..90\\) + \\(97..122\\) + \\(33,35,37,42,43,45,61,63,64,95\\) | Get-Random -Count 32 | ForEach-Object {[char]$_}\\); $jwt = [Convert]::ToBase64String\\([System.Security.Cryptography.RandomNumberGenerator]::GetBytes\\(48\\)\\); \"PG_PASSWORD=$pg\"; \"JWT_SECRET=$jwt\")",
+      "PowerShell($rng = [System.Security.Cryptography.RandomNumberGenerator]::Create\\(\\); $bytes = New-Object byte[] 48; $rng.GetBytes\\($bytes\\); \"JWT_SECRET=\" + [Convert]::ToBase64String\\($bytes\\))",
+      "PowerShell($pg = -join \\(\\(48..57\\) + \\(65..90\\) + \\(97..122\\) | Get-Random -Count 40 | ForEach-Object {[char]$_}\\); \"PG_PASSWORD=$pg\")"
     ]
   }
 }
