@@ -11,7 +11,11 @@ export default defineEventHandler(async (event) => {
   const method = event.node.req.method ?? 'GET';
 
   // Auth endpoints — always public
-  if (url.startsWith('/api/auth/login') || url.startsWith('/api/auth/logout')) {
+  if (
+    url.startsWith('/api/auth/login') ||
+    url.startsWith('/api/auth/logout') ||
+    url.startsWith('/api/auth/me')
+  ) {
     return;
   }
 
