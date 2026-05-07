@@ -84,8 +84,16 @@ PGPASSWORD='ТВОЙ_ПАРОЛЬ' docker run --rm -e PGPASSWORD postgres:16 \
 
 ### 3.1 Server-block
 
+⚠️ **Порт 3010**, не 3000 — на VPS 3000 занят `food-bot-backend`. См. [decisions.md → Host-порт 3010](decisions.md). При переустановке на чистой VPS можно вернуться на 3000.
+
+Самый простой способ записать конфиг — через `nano` (heredoc через SSH-paste нестабилен на длинных конфигах с CRLF):
+
 ```bash
-cat > /etc/nginx/sites-available/cs2.awawa-chef.com <<'CONF'
+nano /etc/nginx/sites-available/cs2.awawa-chef.com
+```
+
+Содержимое:
+```nginx
 server {
     listen 80;
     server_name cs2.awawa-chef.com;
@@ -93,7 +101,7 @@ server {
     client_max_body_size 100M;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -102,14 +110,20 @@ server {
         proxy_read_timeout 300s;
     }
 }
-CONF
+```
 
-ln -s /etc/nginx/sites-available/cs2.awawa-chef.com /etc/nginx/sites-enabled/
+Активация:
+```bash
+ln -sf /etc/nginx/sites-available/cs2.awawa-chef.com /etc/nginx/sites-enabled/
 nginx -t
 systemctl reload nginx
+curl -I http://cs2.awawa-chef.com
+# ожидаем: HTTP/1.1 200 OK + x-powered-by: Nuxt
 ```
 
 ### 3.2 TLS
+
+⚠️ **2026-05-07 фактически:** TLS уже работал по `https://cs2.awawa-chef.com` сразу после nginx-reload, без явного вызова `certbot`. Скорее всего на VPS уже выпущен wildcard `*.awawa-chef.com` (или certbot.timer соседа подобрал новый поддомен). Если у тебя новая VPS — выполни:
 
 ```bash
 certbot --nginx -d cs2.awawa-chef.com --non-interactive --agree-tos -m anton.buyuk@gmail.com
@@ -120,7 +134,11 @@ nginx -t && systemctl reload nginx
 Проверка:
 ```bash
 curl -I https://cs2.awawa-chef.com
-# ожидаем: HTTP/2 502 (бэкенда ещё нет — это норма) с правильными SSL-заголовками
+# ожидаем: HTTP/2 200 (после §4 контейнер уже живой) с валидным TLS
+
+echo | openssl s_client -servername cs2.awawa-chef.com -connect cs2.awawa-chef.com:443 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates
+# проверить какой именно сертификат — wildcard или для конкретного хоста, и срок
 ```
 
 Renewal — через системный `certbot.timer` (уже запущен соседом, ничего не настраиваем).
