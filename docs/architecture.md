@@ -51,7 +51,16 @@ docs/               ← эта папка
 6. Server выставляет httpOnly cookie с user_id (signed JWT_SECRET)
 ```
 
-Middleware `middleware/auth.ts` — **opt-in**, защищает только `/admin/*` маршруты. Публичные GET API (просмотр гранат) доступны без cookie. Не делаем глобальный block — иначе случайные read-only страницы перестанут работать без логина.
+Защита маршрутов — два контура с allowlist'ами:
+
+1. **Клиент (Nuxt route middleware):** `middleware/auth.global.ts` — глобальный, прогоняется на каждом переходе.
+   - `PUBLIC_PATHS = ['/', '/grenades']` → открыто для guest
+   - `ADMIN_PATHS = ['/users', '/moderation', '/settings']` → требуют `isAdmin`
+   - Всё остальное → требует `isAuthenticated` (иначе redirect на `/login`)
+   - `/login` — спецлогика: залогиненный редиректится на `/`
+2. **Сервер (Nitro middleware):** `server/middleware/auth.ts` — allowlist по URL: публичные GET-эндпоинты (`/api/grenades`, `/api/maps|sides|...`, `/api/media/*`), user-level (`POST /api/grenades`, `POST /api/media/upload`), всё остальное — admin.
+
+Деф-deny: новый pages-маршрут или API-эндпоинт без явного allowlist-правила автоматически требует auth (или admin для server). Это сознательный выбор после party mode — забыть `definePageMeta({ middleware })` слишком легко.
 
 Роли: `admin` / `user` / `guest`. Source of truth — таблица `users` (см. memory `project_roles.md`).
 

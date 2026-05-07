@@ -155,6 +155,29 @@ volumes:
 
 ---
 
+## Global allowlist middleware вместо opt-in
+
+**Контекст.** До 2026-05-07 защита pages-маршрутов в `apps/admin` была opt-in: `middleware/auth.ts` (для `isAuthenticated`) и `middleware/auth-admin.ts` (для `isAdmin`) подключались вручную через `definePageMeta({ middleware: ... })` на каждой странице. Архитектурный текст говорил «защищает только `/admin/*` маршруты», хотя такого префикса в коде не существовало — реальные admin-страницы лежат в `/users`, `/moderation`, `/settings/*`. Любая новая admin-страница без явного `definePageMeta` молча оказывалась бы публичной.
+
+**Решение.** Один глобальный middleware `middleware/auth.global.ts` (Nuxt подключает `*.global.ts` ко всем маршрутам автоматически) с двумя списками:
+```
+PUBLIC_PATHS = ['/', '/grenades']     // guest OK
+ADMIN_PATHS  = ['/users', '/moderation', '/settings'] // требует isAdmin
+```
+Всё остальное требует `isAuthenticated`. `middleware/auth-admin.ts` удалён — его логика поглощена.
+
+**Почему не альтернативы:**
+- *Оставить opt-in* — security regress: добавление новой admin-страницы требует помнить о `definePageMeta`. На код-ревью один раз пропустим — публичная админка.
+- *Префикс `/admin/*` для всех админ-страниц* — потребует переименовать `/users`, `/moderation`, `/settings`, переписать ссылки и навигацию. Цена выше, чем у allowlist по именам.
+- *Только серверная защита (Nitro middleware)* — недостаточно: страницы рендерятся на клиенте даже без данных, юзер видит layout/UI, что выглядит как баг и подсказывает структуру админки.
+
+**Последствия:**
+- Для нового pages-маршрута достаточно создать `.vue` файл — он автоматически требует auth. Public-маршрут — добавить путь в `PUBLIC_PATHS`. Admin-only — в `ADMIN_PATHS`.
+- `definePageMeta({ middleware })` больше не нужен ни на одной странице (кроме спецлогики, которой нет).
+- `developMode` (env `DEVELOP_MODE=true`) по-прежнему обходит весь middleware — для локальной разработки без Telegram-логина.
+
+---
+
 ## "Линап дня" отвергнут
 
 **Контекст.** Идея random/curated линапа на главной — типичный engagement-хук в продуктах вроде Anki/Duolingo.
