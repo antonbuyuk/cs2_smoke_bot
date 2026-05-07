@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 
 type User = {
   id: string;
@@ -8,9 +8,6 @@ type User = {
   photoUrl?: string;
   role: 'admin' | 'user';
 };
-
-const user = ref<User | null>(null);
-const isLoading = ref(true);
 
 const DEV_USER: User = {
   id: 'dev-user-1',
@@ -23,6 +20,9 @@ const DEV_USER: User = {
 
 export const useAuth = () => {
   const config = useRuntimeConfig();
+  const user = useState<User | null>('auth:user', () => null);
+  const isLoading = useState<boolean>('auth:loading', () => true);
+
   const isAuthenticated = computed(() => user.value !== null);
   const isAdmin = computed(() => user.value?.role === 'admin');
 
@@ -40,7 +40,10 @@ export const useAuth = () => {
 
     try {
       isLoading.value = true;
-      const data = await $fetch<{ user: User }>('/api/auth/me');
+      // На SSR прокидываем cookie из исходного запроса браузера,
+      // иначе $fetch к /api/auth/me пойдёт без сессии и вернёт 401.
+      const headers = import.meta.server ? useRequestHeaders(['cookie']) : undefined;
+      const data = await $fetch<{ user: User }>('/api/auth/me', { headers });
       user.value = data.user;
     } catch (error: any) {
       if (error?.status === 401 || error?.statusCode === 401) {

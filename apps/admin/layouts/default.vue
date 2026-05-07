@@ -1,11 +1,7 @@
 <script setup lang="ts">
-const { user, isAuthenticated, isAdmin, logout, fetchUser } = useAuth();
+const { user, isAuthenticated, isAdmin, logout } = useAuth();
 const { theme, toggleTheme } = useTheme();
 const route = useRoute();
-
-onMounted(async () => {
-  await fetchUser();
-});
 
 const handleLogout = async () => {
   await logout();
