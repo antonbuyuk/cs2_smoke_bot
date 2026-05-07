@@ -120,6 +120,14 @@
     "delete": "Delete",
     "edit": "Edit",
     "close": "Close"
+  },
+  "flashcard": {
+    "want": "Want",
+    "learning": "Learning",
+    "learned": "Learned",
+    "inProgressTitle": "In progress",
+    "inProgressEmpty": "Nothing in your deck yet — mark a grenade as «Learning» to see it here.",
+    "yourDeck": "Your deck"
   }
 }
 
