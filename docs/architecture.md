@@ -87,14 +87,28 @@ Bot-процесс не нужен — admin сам делает HTTP-запро
 
 `STORAGE_PATH` — env, дефолт `./storage/uploads` (для локалки), в проде — `/app/storage/uploads`.
 
-## PWA (планируется)
+## PWA
 
-Через `@vite-pwa/nuxt`:
-- **App shell** (HTML/JS/CSS) — `NetworkFirst` (актуальная сборка приоритетнее)
-- **API** (`/api/*`) — `StaleWhileRevalidate` (мгновенный отклик + фоновое обновление)
-- **Медиа** (`/api/media/*`) — `CacheFirst` (file_id immutable, файл по нему не меняется)
+Через `@vite-pwa/nuxt` (`registerType: 'autoUpdate'`).
 
-Что работает offline: просмотр уже посмотренных гранат с их медиа. Что не работает: логин, добавление, синхронизация прогресса (планируется через background sync).
+**Manifest** — `apps/admin/nuxt.config.ts → pwa.manifest`. Иконки: `public/icons/logo-small.png` (192×192) и `public/icons/logo-large.png` (512×512, плюс maskable). `start_url: '/'`, `display: 'standalone'`, `theme_color: '#0d0f14'`.
+
+**Workbox runtime caching** (порядок важен — первый матч выигрывает):
+
+| Pattern | Strategy | Зачем |
+|---|---|---|
+| `/api/auth/*` | `NetworkOnly` | Логин и cookie — без оффлайна, без устаревших данных |
+| `/api/me/*` | `NetworkOnly` | Личный прогресс должен быть свежим, чтобы не мерджить |
+| `/api/media/*` | `CacheFirst` (300 entries, 30 дней) | `file_id` immutable, файл по нему не меняется |
+| `/api/*` (остальное) | `StaleWhileRevalidate` | Каталог гранат — мгновенный отклик + фоновое обновление |
+| Precache (build) | — | App shell (`js/css/html/svg/png/ico/woff2`) |
+
+**Navigation fallback:** `/` (precache'd shell). Denylist: `/api/*`, `/login` — на них не подменяем.
+
+**Что работает offline:** главная + просмотр уже посмотренных гранат с медиа.
+**Что не работает:** логин (нужен Telegram-widget с CDN), добавление гранаты (POST уйдёт в network error), сохранение прогресса (тоже POST/PUT). Background sync для прогресса не реализован — потенциальный backlog.
+
+**Dev:** `pwa.devOptions.enabled = false` — SW в dev мешает HMR. Если нужен debug кэшей — временно ставь в `true`.
 
 ## Infrastructure
 
