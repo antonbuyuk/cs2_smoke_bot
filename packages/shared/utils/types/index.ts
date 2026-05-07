@@ -54,6 +54,16 @@ export interface UserRecord {
   createdAt: string;
 }
 
+export type ProgressStatus = 'want' | 'learning' | 'learned';
+
+export interface ProgressRecord {
+  granade_id: number;
+  status: ProgressStatus;
+  updated_at: string;
+}
+
+export type ProgressMap = Record<number, ProgressStatus>;
+
 export interface SmokeMediaRecord {
   id: number;
   smoke_id: number;

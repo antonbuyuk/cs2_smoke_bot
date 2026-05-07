@@ -45,6 +45,9 @@ import {
   upsertUser,
   setUserRole,
   getAllUsers,
+  getProgressByUser,
+  upsertProgress,
+  deleteProgress,
 } from './database';
 
 export {
@@ -93,4 +96,7 @@ export {
   upsertUser,
   setUserRole,
   getAllUsers,
+  getProgressByUser,
+  upsertProgress,
+  deleteProgress,
 };
