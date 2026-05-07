@@ -4,14 +4,16 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Сначала только package.json'ы — слой install кешируется, пока они не меняются
-COPY package.json package-lock.json ./
+# Сначала только package.json'ы — слой install кешируется, пока они не меняются.
+# Lockfile НЕ копируем намеренно: npm bug #4828 — lock, созданный на Windows,
+# не содержит linux-binding'и oxc-minify (linux-x64-gnu/musl) в разделе packages,
+# и `npm install` их не подтягивает, пока lock существует. Чистый install
+# на Linux строит правильное дерево под текущую платформу.
+COPY package.json ./
 COPY apps/admin/package.json ./apps/admin/
 COPY apps/bot/package.json ./apps/bot/
 COPY packages/shared/package.json ./packages/shared/
 
-# npm install (а не ci) — обходим баг npm с optional native bindings (#4828):
-# lockfile, сгенерированный на Windows, не содержит linux-binding'и oxc-minify.
 RUN npm install --include=dev
 
 # Исходники
