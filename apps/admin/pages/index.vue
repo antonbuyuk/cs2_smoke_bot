@@ -9,13 +9,18 @@ definePageMeta({
 const { theme, toggleTheme } = useTheme();
 
 // --- Auth ---
-const { user, logout } = useAuth();
+const { user, logout, isAuthenticated } = useAuth();
 const userInitials = computed(() => {
   if (!user.value) return '?';
   const f = user.value.firstName?.[0] ?? '';
   const l = user.value.lastName?.[0] ?? '';
   return ((f + l).toUpperCase() || user.value.username?.[0]?.toUpperCase()) ?? '?';
 });
+
+// --- Flashcard progress ---
+const { t } = useI18n();
+const { fetchProgress, statusOf } = useProgress();
+await fetchProgress();
 
 // --- Data ---
 const { data: grenadesResp, refresh: refreshGrenades } = await useFetch<{ data: SmokeWithMap[] }>('/api/grenades');
@@ -72,6 +77,8 @@ const mapsWithCounts = computed(() => {
 
 const totalLineupCount = computed(() => allGrenades.value.length);
 const uniqueMapsCount = computed(() => new Set(allGrenades.value.map((g) => g.map_id).filter(Boolean)).size);
+
+const learningGrenades = computed(() => allGrenades.value.filter((g) => statusOf(g.id) === 'learning'));
 
 const mapsWithImage = computed(() => allMaps.value.filter((m) => !!m.position_image_url));
 
@@ -230,6 +237,31 @@ const sparkValues = [40, 55, 38, 72, 60, 84, 90];
         </div>
       </div>
 
+      <!-- In-progress deck -->
+      <section v-if="isAuthenticated && learningGrenades.length" class="nd-deck">
+        <div class="nd-deck-head">
+          <h2>{{ t('flashcard.inProgressTitle') }}</h2>
+          <span class="nd-deck-count">{{ learningGrenades.length }}</span>
+        </div>
+        <div class="nd-deck-rail">
+          <article
+            v-for="g in learningGrenades"
+            :key="g.id"
+            class="nd-deck-card"
+            @click="openGrenade = g"
+          >
+            <div class="nd-deck-media">
+              <img v-if="g.cover_file_id" :src="`/api/media/${encodeURIComponent(g.cover_file_id)}`" alt="" />
+              <span v-else class="nd-deck-thumb-label">{{ g.map_display_name }}</span>
+            </div>
+            <div class="nd-deck-body">
+              <span class="nd-deck-name">{{ g.name }}</span>
+              <span class="nd-deck-meta">{{ g.map_display_name }} · {{ getTypeDisplayName(g.grenade_type) }}</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <!-- Map strip -->
       <div class="nd-map-strip">
         <div
@@ -373,6 +405,7 @@ const sparkValues = [40, 55, 38, 72, 60, 84, 90];
             <div class="nd-card-badges">
               <GrenadeTypeBadge :type-name="g.grenade_type" :display-name="getTypeDisplayName(g.grenade_type)" />
               <span class="nd-tag-badge">{{ g.side }}</span>
+              <GrenadeStatusBadge :status="statusOf(g.id)" />
             </div>
             <div class="nd-card-actions" @click.stop>
               <button title="Edit" @click.stop="handleEdit(g)">
@@ -468,6 +501,11 @@ const sparkValues = [40, 55, 38, 72, 60, 84, 90];
                   <dt>Line</dt><dd>{{ openGrenade.line }}</dd>
                 </template>
               </dl>
+            </div>
+
+            <div v-if="isAuthenticated" class="nd-modal-section">
+              <h3>{{ t('flashcard.yourDeck') }}</h3>
+              <GrenadeStatusSwitch :granade-id="openGrenade.id" />
             </div>
 
             <div class="nd-modal-foot">
@@ -721,6 +759,100 @@ const sparkValues = [40, 55, 38, 72, 60, 84, 90];
   background: var(--accent);
   border-radius: 1px;
   opacity: .7;
+}
+
+/* ── In-progress deck ───────────────────────────────────── */
+.nd-deck {
+  margin-bottom: 28px;
+}
+.nd-deck-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.nd-deck-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+}
+.nd-deck-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.nd-deck-rail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+  &::-webkit-scrollbar { height: 6px; }
+  &::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+}
+.nd-deck-card {
+  flex: 0 0 220px;
+  scroll-snap-align: start;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform .15s, border-color .15s;
+}
+.nd-deck-card:hover {
+  transform: translateY(-2px);
+  border-color: oklch(0.78 .17 220);
+}
+.nd-deck-media {
+  aspect-ratio: 16/10;
+  background: var(--bg-3);
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.nd-deck-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nd-deck-thumb-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.nd-deck-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nd-deck-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nd-deck-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Map strip ──────────────────────────────────────────── */
