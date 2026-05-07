@@ -39,6 +39,12 @@ export default defineEventHandler(async (event) => {
     return;
   }
 
+  // User-level: личный flashcard-прогресс
+  if (url.startsWith('/api/me/')) {
+    requireUser(event);
+    return;
+  }
+
   // Everything else requires admin
   if (url.startsWith('/api/')) {
     requireAdmin(event);

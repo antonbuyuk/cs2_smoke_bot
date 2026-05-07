@@ -13,6 +13,8 @@ import type {
   LineRecord,
   GrenadeTypeRecord,
   UserRecord,
+  ProgressStatus,
+  ProgressRecord,
 } from '../utils/types';
 import type {
   DifficultyKey,
@@ -147,6 +149,22 @@ const runMigrations = async (client: PoolClient) => {
       await client.query('CREATE INDEX idx_granades_created_by ON granades (created_by)');
       console.log('Added created_by column to granades table');
     }
+  }
+
+  // Flashcard-deck: личный прогресс юзера по гранатам
+  const granadeProgressExists = await tableExists('granade_progress');
+  if (!granadeProgressExists) {
+    await client.query(`
+      CREATE TABLE granade_progress (
+        user_id    BIGINT  NOT NULL REFERENCES users (telegram_id) ON DELETE CASCADE,
+        granade_id INTEGER NOT NULL REFERENCES granades (id)       ON DELETE CASCADE,
+        status     TEXT    NOT NULL CHECK (status IN ('want', 'learning', 'learned')),
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, granade_id)
+      )
+    `);
+    await client.query('CREATE INDEX idx_granade_progress_user_status ON granade_progress (user_id, status)');
+    console.log('Created granade_progress table');
   }
 };
 
@@ -1017,4 +1035,37 @@ export const getAllUsers = async (): Promise<UserRecord[]> => {
     role: r.role,
     createdAt: r.created_at,
   }));
+};
+
+export const getProgressByUser = async (userId: number): Promise<ProgressRecord[]> => {
+  const { rows } = await getPool().query<ProgressRecord>(
+    'SELECT granade_id, status, updated_at FROM granade_progress WHERE user_id = $1',
+    [userId]
+  );
+  return rows;
+};
+
+export const upsertProgress = async (
+  userId: number,
+  granadeId: number,
+  status: ProgressStatus,
+): Promise<void> => {
+  await getPool().query(
+    `
+      INSERT INTO granade_progress (user_id, granade_id, status, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (user_id, granade_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        updated_at = NOW()
+    `,
+    [userId, granadeId, status]
+  );
+};
+
+export const deleteProgress = async (userId: number, granadeId: number): Promise<number> => {
+  const { rowCount } = await getPool().query(
+    'DELETE FROM granade_progress WHERE user_id = $1 AND granade_id = $2',
+    [userId, granadeId]
+  );
+  return rowCount ?? 0;
 };
