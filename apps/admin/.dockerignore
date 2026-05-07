@@ -1,0 +1,59 @@
+# Dependencies (доставим через npm ci в builder stage)
+**/node_modules
+
+# Build artifacts
+**/.output
+**/.nuxt
+**/.nitro
+**/.cache
+**/dist
+
+# Env / секреты
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docs / metadata (build их не использует)
+docs
+_bmad
+_bmad-output
+.agents
+.claude
+README.md
+DATABASE_SETUP.md
+COMPONENTS.md
+**/*.md
+
+# Логи
+**/*.log
+logs
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Тесты (для build не нужны; вернём, когда заведём CI)
+**/tests
+**/*.test.ts
+**/*.spec.ts
+
+# Bot artefacts (bot заморожен, его dist не строим)
+apps/bot/dist
+apps/bot/storage
+apps/bot/coverage
+
+# Storage (медиа примонтируется через bind mount в проде, локалку не везём)
+apps/admin/storage
+
+# Docker самого себя
+Dockerfile
+.dockerignore
